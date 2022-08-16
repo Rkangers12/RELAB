@@ -1,6 +1,5 @@
 from datetime import datetime
-from os import times
-from time import time
+from datetime import timedelta
 
 from store.handler import Handler
 
@@ -64,6 +63,8 @@ class StudyTrack:
 
         # re-initialise current_session
         self._datastore.overwrite(db_key='current_session', db_value={})
+        
+        return self.get_timedelta(current_session['finish'], current_session['start'])
 
     def store_study(self, session):
         '''store the current study session by adding to existing or new'''
@@ -79,4 +80,14 @@ class StudyTrack:
         db['study_records'][datestamp] = today_record
         
         self._datastore.write_all(db)
-        
+    
+    def get_study_start(self):
+        '''get the current study sessions starting time'''
+
+        current_start = self._datastore.get_value('current_session', {}).get('start')
+        return self._handletime.convert_timestamp(stamp=current_start)
+    
+    def get_timedelta(self, timestampA, timestampB):
+        '''get the time delta in a presentable format of a timestamp'''
+
+        return str(timedelta(seconds=self._handletime.time_difference(timestampA, timestampB)))

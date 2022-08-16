@@ -40,14 +40,24 @@ async def on_message(message):
         await message.channel.send("Your database has been backed up in a secure location.")
 
     if msg.startswith('.study'):
+        await message.delete()
+
         if not datastore.get_value('studying'):
-            await message.delete()
             studytrack.activate()
             await message.channel.send("Study Mode Activated...")
+
         else:
-            await message.delete()
-            studytrack.deactivate()
-            await message.channel.send("Study Mode Deactivated...")
+            studied = studytrack.deactivate()
+            await message.channel.send("Study Mode Deactivated... \nTime Studied: {}".format(studied))
+
+    if msg.startswith('.getstudy'):
+        await message.delete()
+
+        if datastore.get_value('studying'):
+            await message.channel.send("You began studying: {}".format(studytrack.get_study_start()))
+
+        else:
+            await message.channel.send("I have not been informed of your study session")
 
 
 client.run(os.getenv('TOKEN'))

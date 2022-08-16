@@ -2,5 +2,19 @@
     "studying": false,
     "current_session": {},
     "study_records": {
+        "160822": [
+            {
+                "start": 1660680646,
+                "finish": 1660680785
+            },
+            {
+                "start": 1660680997,
+                "finish": 1660681729
+            },
+            {
+                "start": 1660681764,
+                "finish": 1660681776
+            }
+        ]
     }
 }
