@@ -59,5 +59,19 @@ async def on_message(message):
         else:
             await message.channel.send("I have not been informed of your study session")
 
+    if msg.startswith('.help'):
+        await message.delete()
+        greeting = "Hi, Welcome to 'Ranveer's Easy Life Autonomy Bot' or 'RELAB' for short."
+        message2 = "I see that you have requested some help, here is a breakdown of my current services:"
+        cmd1 = "    - .hello    -> I provide a greeting."
+        cmd2 = "    - .snapshot -> I perform a backup of your existing data to keep it extra safe. xD"
+        cmd3 = "    - .study    -> I `activate/deactivate` study mode and make a log of the session."
+        cmd4 = "    - .getstudy -> I tell you how long your study session has been active."
+        cmd5 = "    - .help     -> I provide some help to yourself, as is occurring now!"
+
+        support = '```{}\n\n{}\n\n{}\n{}\n{}\n{}\n{}\n```'.format(greeting, message2, cmd1, cmd2, cmd3, cmd4, cmd5)
+        
+        await message.channel.send(support)
+
 
 client.run(os.getenv('TOKEN'))
