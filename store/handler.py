@@ -6,9 +6,9 @@ from json import load, dump
 
 class Handler:
 
-    def __init__(self):
+    def __init__(self, db_location=None):
 
-        self._db = 'store/db.json'
+        self._db = db_location or 'store/db.json'
 
     def get(self):
         '''returns entire database'''
@@ -19,8 +19,30 @@ class Handler:
     def get_keys(self):
         '''returns all non-nested keys within database'''
 
-        with open(self._db) as db:
-            return load(db).keys()
+        return self.get().keys()
+    
+    def get_value(self, key, default=None):
+        ''' returns the value of a provided key within database'''
+
+        return self.get().get(key, default)
+
+    def get_nested_value(self, keys=[], default=None):
+        '''traverse the database for the desired nested value'''
+
+        if len(keys) == 0:
+            return
+
+        first_key = keys[0]
+        traversed = self.get_value(key=first_key, default=default)
+
+        if len(keys) > 1:
+            for key in keys[1:]:
+                if traversed == default:
+                    return traversed
+                
+                traversed = traversed.get(key, default)
+        
+        return traversed
 
     def write_all(self, new_db):
         '''re-writes over existing database with new database'''
