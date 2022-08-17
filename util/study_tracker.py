@@ -36,9 +36,10 @@ class StudyTrack:
 
         self._datastore = datastore or Handler()
         self._handletime = HandleTimes()
+        self._studykey = 'study_records'
 
-        if 'study_records' not in self._datastore.get_keys():
-            self._datastore.overwrite(db_key='study_records', db_value={})
+        if self._studykey not in self._datastore.get_keys():
+            self._datastore.overwrite(db_key=self._studykey, db_value={})
 
     def activate(self):
         '''activate study mode and record start of session'''
@@ -64,7 +65,7 @@ class StudyTrack:
         # re-initialise current_session
         self._datastore.overwrite(db_key='current_session', db_value={})
         
-        return self.get_timedelta(current_session['finish'], current_session['start'])
+        return str(self.get_timedelta(current_session['finish'], current_session['start']))
 
     def store_study(self, session):
         '''store the current study session by adding to existing or new'''
@@ -72,12 +73,12 @@ class StudyTrack:
         timestamp = self._handletime.current_timestamp()
         datestamp = self._handletime.convert_timestamp(timestamp, 'date')
 
-        records = self._datastore.get_value('study_records', {})
+        records = self._datastore.get_value(self._studykey, {})
         today_record = records.get(datestamp, [])
         today_record.append(session)
 
         db = self._datastore.get()
-        db['study_records'][datestamp] = today_record
+        db[self._studykey][datestamp] = today_record
         
         self._datastore.write_all(db)
     
@@ -90,4 +91,25 @@ class StudyTrack:
     def get_timedelta(self, timestampA, timestampB):
         '''get the time delta in a presentable format of a timestamp'''
 
-        return str(timedelta(seconds=self._handletime.time_difference(timestampA, timestampB)))
+        return timedelta(seconds=self._handletime.time_difference(timestampA, timestampB))
+
+    def tally_study(self, date=None):
+        '''calculates the hours spent studying for the day'''
+
+        datestamp = date or self._handletime.convert_timestamp(self._handletime.current_timestamp(), 'date')
+        
+        sessions = self._datastore.get_value(self._studykey, {}).get(datestamp, None)
+
+        if sessions is None:
+            return 0
+        
+        hour_tally = self.get_timedelta(0, 0)
+
+        print(sessions)
+        for session in sessions:
+            tally = self.get_timedelta(session.get('finish', 0), session.get('start', 0))
+           
+            hour_tally = hour_tally + tally            
+
+        return hour_tally
+
