@@ -1,34 +1,5 @@
-from datetime import datetime
-from datetime import timedelta
-
 from store.handler import Handler
-
-
-class HandleTimes:
-
-    def current_timestamp(self):
-        '''return the current timestamp'''
-
-        now = datetime.now()
-        return int(datetime.timestamp(now))
-    
-    def convert_timestamp(self, stamp, date_format=None):
-        '''convert the current timestamp into date or hhmm'''
-
-        dt_object = datetime.fromtimestamp(stamp)
-
-        if date_format == 'date':
-            dt_object = dt_object.strftime("%d%m%y")
-        elif date_format == 'time':
-            dt_object = dt_object.strftime("%H%M")
-
-        return dt_object
-
-    def time_difference(self, timestampA, timestampB):
-        '''calculate seconds difference between two timestamps'''
-
-        return timestampA - timestampB
-
+from util.handle_times import HandleTimes
 
 class StudyTrack:
     
@@ -65,7 +36,7 @@ class StudyTrack:
         # re-initialise current_session
         self._datastore.overwrite(db_key='current_session', db_value={})
         
-        return str(self.get_timedelta(current_session['finish'], current_session['start']))
+        return str(self._handletime.get_timedelta(current_session['finish'], current_session['start']))
 
     def store_study(self, session):
         '''store the current study session by adding to existing or new'''
@@ -88,11 +59,6 @@ class StudyTrack:
         current_start = self._datastore.get_value('current_session', {}).get('start')
         return self._handletime.convert_timestamp(stamp=current_start)
     
-    def get_timedelta(self, timestampA, timestampB):
-        '''get the time delta in a presentable format of a timestamp'''
-
-        return timedelta(seconds=self._handletime.time_difference(timestampA, timestampB))
-
     def tally_study(self, date=None):
         '''calculates the hours spent studying for the day'''
 
@@ -103,13 +69,33 @@ class StudyTrack:
         if sessions is None:
             return 0
         
-        hour_tally = self.get_timedelta(0, 0)
+        hour_tally = self._handletime.get_timedelta(0, 0)
 
         print(sessions)
         for session in sessions:
-            tally = self.get_timedelta(session.get('finish', 0), session.get('start', 0))
+            tally = self._handletime.get_timedelta(session.get('finish', 0), session.get('start', 0))
            
             hour_tally = hour_tally + tally            
 
         return hour_tally
+
+    def period_summary(self):
+        '''provide a study summary for a given period'''
+
+        # check if week ended, exit False if not.
+        week_end = 7 if self._handletime.check_end_week() else 7
+        if not week_end:
+            pass
+            # return week_end
+        
+        current = 1661082713
+        dates = []
+        while week_end > 0:
+            
+            week_end -= 1
+
+            minus_days = week_end * 86400
+            dates.append(self._handletime.convert_timestamp(current - minus_days, 'date'))
+            
+        print(dates)
 

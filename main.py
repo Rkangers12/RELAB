@@ -37,27 +37,27 @@ async def on_message(message):
     if msg.startswith('.snapshot'):
         await message.delete()
         datastore.snapshot()
-        await message.channel.send("Your database has been backed up in a secure location.")
+        await message.channel.send("**Your database has been backed up in a secure location.**")
 
     if msg.startswith('.study'):
         await message.delete()
 
         if not datastore.get_value('studying'):
             studytrack.activate()
-            await message.channel.send("Study Mode Activated...")
+            await message.channel.send("**Study Mode Activated...**")
 
         else:
             studied = studytrack.deactivate()
-            await message.channel.send("Study Mode Deactivated... \nTime Studied: {}".format(studied))
+            await message.channel.send("**Study Mode Deactivated...** \n  - Time Studied: {}".format(studied))
 
     if msg.startswith('.getstudy'):
         await message.delete()
 
         if datastore.get_value('studying'):
-            await message.channel.send("You began studying: {}".format(studytrack.get_study_start()))
+            await message.channel.send("You began studying: **{}**".format(studytrack.get_study_start()))
 
         else:
-            await message.channel.send("I have not been informed of your study session")
+            await message.channel.send("No currently **active** study session...")
 
     if msg.startswith('.help'):
         await message.delete()
