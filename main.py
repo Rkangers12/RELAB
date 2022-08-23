@@ -5,15 +5,21 @@ from json import loads
 from dotenv import load_dotenv
 
 from store.handler import Handler
+from util.session_tracker import SessionTrack
 from util.study_tracker import StudyTrack
 
 load_dotenv()
 client = discord.Client()
+
 datastore = Handler()
 studytrack = StudyTrack(datastore=datastore)
+gymtrack = SessionTrack('gym_records', 'gymming', datastore=datastore)
 
-if 'studying' not in datastore.get_keys():
-    datastore.overwrite(db_key='studying', db_value=False)
+sessions = ['studying', 'gymming']
+
+for session in sessions:
+    if session not in datastore.get_keys():
+        datastore.overwrite(db_key=session, db_value=False)
 
 
 @client.event
@@ -58,6 +64,28 @@ async def on_message(message):
 
         else:
             await message.channel.send("No currently **active** study session...")
+
+    if msg.startswith('.gym'):
+        await message.delete()
+
+        if not datastore.get_value('gymming'):
+            gymtrack.activate()
+            await message.channel.send("**Gym Session Activated...**")
+
+        else:
+            exercised = gymtrack.deactivate()
+            await message.channel.send("**Gym Session Deactivated...** \n  - Exercise duration: {}".format(exercised))
+
+
+    if msg.startswith('.getgym'):
+        await message.delete()
+
+        if datastore.get_value('gymming'):
+            await message.channel.send("You began gymming: **{}**".format(gymtrack.get_session_start()))
+
+        else:
+            await message.channel.send("No currently **active** gymming session...")
+
 
     if msg.startswith('.help'):
         await message.delete()
