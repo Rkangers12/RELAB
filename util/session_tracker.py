@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from store.handler import Handler
 from util.handle_times import HandleTimes
 
@@ -66,13 +68,12 @@ class SessionTrack:
         datestamp = date or self._handletime.convert_timestamp(self._handletime.current_timestamp(), 'date')
         
         sessions = self._datastore.get_value(self._session_key, {}).get(datestamp, None)
-
-        if sessions is None:
-            return 0
         
         hour_tally = self._handletime.get_timedelta(0, 0)
 
-        print(sessions)
+        if sessions is None:
+            return hour_tally
+
         for session in sessions:
             tally = self._handletime.get_timedelta(session.get('finish', 0), session.get('start', 0))
            
@@ -80,23 +81,37 @@ class SessionTrack:
 
         return hour_tally
 
-    def period_summary(self):
-        '''provide an activity summary for a given period'''
+    def period_dates(self, period=None):
+        '''provide an dates for a given period'''
 
-        # check if week ended, exit False if not.
-        week_end = 7 if self._handletime.check_end_week() else 7
-        if not week_end:
-            pass
-            # return week_end
+        period_end = False
         
-        current = 1661082713
+        if period == 'week':
+            # check if week ended, exit False if not.
+            period_end = 7 if self._handletime.check_end_week() else 7
+
+        if period == 'month':
+            # check if month ended, exit False if not
+            period_end = self._handletime.calculate_days(period='month') if self._handletime.check_end_month() else 31
+
+        if period == 'year':
+            # check if year ended, exit False if not
+            period_end = self._handletime.calculate_days(period='year') if self._handletime.check_end_year() else 365
+            
+        if not period_end:
+            period_end = 0
+            
         dates = []
-        while week_end > 0:
+        current = self._handletime.current_timestamp()
+        
+        while period_end > 0:
             
-            week_end -= 1
-
-            minus_days = week_end * 86400
+            period_end -= 1
+            minus_days = period_end * 86400
             dates.append(self._handletime.convert_timestamp(current - minus_days, 'date'))
-            
-        print(dates)
 
+        hour_tally = self._handletime.get_timedelta(0, 0)
+        for date_stamp in dates:
+            hour_tally = hour_tally + self.tally_activity(date_stamp)
+        
+        return hour_tally

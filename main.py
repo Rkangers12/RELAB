@@ -6,13 +6,13 @@ from dotenv import load_dotenv
 
 from store.handler import Handler
 from util.session_tracker import SessionTrack
-from util.study_tracker import StudyTrack
+
 
 load_dotenv()
 client = discord.Client()
 
 datastore = Handler()
-studytrack = StudyTrack(datastore=datastore)
+studytrack = SessionTrack('study_records', 'studying', datastore=datastore)
 gymtrack = SessionTrack('gym_records', 'gymming', datastore=datastore)
 
 sessions = ['studying', 'gymming']
@@ -84,7 +84,7 @@ async def on_message(message):
             await message.channel.send("You began gymming: **{}**".format(gymtrack.get_session_start()))
 
         else:
-            await message.channel.send("No currently **active** gymming session...")
+            await message.channel.send("No **active** gym session...")
 
 
     if msg.startswith('.help'):
@@ -95,9 +95,11 @@ async def on_message(message):
         cmd2 = "    - .snapshot -> I perform a backup of your existing data to keep it extra safe. xD"
         cmd3 = "    - .study    -> I `activate/deactivate` study mode and make a log of the session."
         cmd4 = "    - .getstudy -> I tell you how long your study session has been active."
-        cmd5 = "    - .help     -> I provide some help to yourself, as is occurring now!"
+        cmd5 = "    - .gym    -> I `activate/deactivate` gym mode and make a log of the session."
+        cmd6 = "    - .getgym -> I tell you how long your gym session has been active."
+        cmd7 = "    - .help     -> I provide some help to yourself, as is occurring now!"
 
-        support = '```{}\n\n{}\n\n{}\n{}\n{}\n{}\n{}\n```'.format(greeting, message2, cmd1, cmd2, cmd3, cmd4, cmd5)
+        support = '```{}\n\n{}\n\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n```'.format(greeting, message2, cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7)
         
         await message.channel.send(support)
 

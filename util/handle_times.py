@@ -44,12 +44,11 @@ class HandleTimes:
     def check_end_month(self):
         '''check if it's the end of the month'''
         
-        now = datetime.now()
-        days_in_month = self.calculate_days(now.year, now.month, 'month')
+        days_in_month = self.calculate_days(period='month')
 
         if days_in_month:
-            # month check - check if it's the 1st
-            if now.day == days_in_month[1]:
+            # month check - check if it's the last day of the month
+            if datetime.now().day == days_in_month[1]:
                 return True
                 
         return False
@@ -64,9 +63,15 @@ class HandleTimes:
             
         return False
         
-    def calculate_days(self, year, month, period=None):
+    def calculate_days(self, year=None, month=None, period=None):
         '''check number of days for a given period'''
         
+        now = datetime.now()
+        if year is None:
+            year = now.year
+        if month is None:
+            month = now.month
+
         if period == 'month':
             return calendar.monthrange(year, month)
         
