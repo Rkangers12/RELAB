@@ -36,10 +36,12 @@ async def on_message(message):
     
     msg = message.content
 
-    if msg.startswith('.hello'):
-        await message.delete()
-        await message.channel.send("Hello There!")
-    
+    # example of how we can restrict functionality to specific channels within the guild
+    if message.channel.id == 1012023361922150450:  # channel id of the greetings channel
+        if msg.startswith('.hello'):
+            await message.delete()
+            await message.channel.send("Hi {}, in the {} channel!".format(message.author, message.channel))
+                
     if msg.startswith('.snapshot'):
         await message.delete()
         datastore.snapshot()
@@ -76,7 +78,6 @@ async def on_message(message):
             exercised = gymtrack.deactivate()
             await message.channel.send("**Gym Session Deactivated...** \n  - Exercise duration: {}".format(exercised))
 
-
     if msg.startswith('.getgym'):
         await message.delete()
 
@@ -85,7 +86,6 @@ async def on_message(message):
 
         else:
             await message.channel.send("No **active** gym session...")
-
 
     if msg.startswith('.help'):
         await message.delete()
