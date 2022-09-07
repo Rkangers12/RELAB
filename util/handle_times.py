@@ -19,6 +19,8 @@ class HandleTimes:
             dt_object = dt_object.strftime("%d%m%y")
         elif date_format == 'time':
             dt_object = dt_object.strftime("%H%M")
+        elif date_format == 'clean':
+            dt_object = dt_object.strftime("%c")
 
         return dt_object
 
@@ -77,4 +79,7 @@ class HandleTimes:
         
         if period == 'year':
             return 366 if calendar.isleap(year) else 365
+        
+        if period == 'week':
+            return 7
 

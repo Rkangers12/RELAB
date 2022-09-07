@@ -81,29 +81,24 @@ class SessionTrack:
 
         return hour_tally
 
-    def period_dates(self, period=None):
-        '''provide an dates for a given period'''
-
-        period_end = False
+    def period_dates(self, period):
+        '''called when period at end and provide an dates for a given period'''
         
         if period == 'week':
             # check if week ended, exit False if not.
-            period_end = 7 if self._handletime.check_end_week() else 7
+            period_end = self._handletime.calculate_days(period='week')
 
         if period == 'month':
             # check if month ended, exit False if not
-            period_end = self._handletime.calculate_days(period='month') if self._handletime.check_end_month() else 31
+            period_end = self._handletime.calculate_days(period='month')[1]
 
         if period == 'year':
             # check if year ended, exit False if not
-            period_end = self._handletime.calculate_days(period='year') if self._handletime.check_end_year() else 365
-            
-        if not period_end:
-            period_end = 0
+            period_end = self._handletime.calculate_days(period='year')
             
         dates = []
         current = self._handletime.current_timestamp()
-        
+
         while period_end > 0:
             
             period_end -= 1

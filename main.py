@@ -5,11 +5,13 @@ from dotenv import load_dotenv
 
 from store.handler import Handler
 from util.session_tracker import SessionTrack
+from util.summary_report import SummaryReport
 
 
 load_dotenv()
 intents = discord.Intents.all()
 client = discord.Client(intents=intents)
+
 
 datastore = Handler()
 studytrack = SessionTrack('study_records', 'studying', datastore=datastore)
@@ -24,8 +26,20 @@ for session in sessions:
 
 @client.event
 async def on_ready():
+    print('\nWe have logged in as {0.user}'.format(client))
 
-    print('We have logged in as {0.user}'.format(client))
+    summaryTask = SummaryReport(
+        channel_id=1012023361922150450, 
+        intents=intents, 
+        client=client,
+        sessions=[
+            {'classVar': studytrack, 'sessionType': 'Study'},
+            {'classVar': gymtrack, 'sessionType': 'Gym'}
+        ])
+
+    if not summaryTask.statistic_report.is_running():
+        summaryTask.statistic_report.start()  # if the task is not already running, start it.
+        print("Booted Background Process: Statistic Reporter - {0.user}\n".format(client))
 
 
 async def snapshot(message):
