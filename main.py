@@ -1,9 +1,9 @@
 import discord
 import os
-from json import loads
 from dotenv import load_dotenv
 
 from store.handler import Handler
+from tools.session_commands import SessionCommands
 from util.session_tracker import SessionTrack
 from util.summary_report import SummaryReport
 
@@ -12,17 +12,11 @@ load_dotenv()
 intents = discord.Intents.all()
 client = discord.Client(intents=intents)
 
-
 datastore = Handler()
 studytrack = SessionTrack('study_records', 'studying', datastore=datastore)
 gymtrack = SessionTrack('gym_records', 'gymming', datastore=datastore)
 
-sessions = ['studying', 'gymming']
-
-for session in sessions:
-    if session not in datastore.get_keys():
-        datastore.overwrite(db_key=session, db_value=False)
-
+sesscomms = SessionCommands(datastore=datastore, studytrack=studytrack, gymtrack=gymtrack)
 
 @client.event
 async def on_ready():
@@ -49,53 +43,6 @@ async def snapshot(message):
     datastore.snapshot()
     await message.channel.send("**Your database has been backed up in a secure location.**")
 
-async def study(message):
-    """activate/deactivate study mode"""
-
-    await message.delete()
-
-    if not datastore.get_value('studying'):
-        studytrack.activate()
-        await message.channel.send("**Study Mode Activated...**")
-
-    else:
-        studied = studytrack.deactivate()
-        await message.channel.send("**Study Mode Deactivated...** \n  - Time Studied: {}".format(studied))
-
-async def get_study(message):
-    """retrieve study session information"""
-
-    await message.delete()
-
-    if datastore.get_value('studying'):
-        await message.channel.send("You began studying: **{}**".format(studytrack.get_session_start()))
-
-    else:
-        await message.channel.send("No currently **active** study session...")
-
-async def gym(message):
-    """activate/deactivate gym session"""
-
-    await message.delete()
-
-    if not datastore.get_value('gymming'):
-        gymtrack.activate()
-        await message.channel.send("**Gym Session Activated...**")
-
-    else:
-        exercised = gymtrack.deactivate()
-        await message.channel.send("**Gym Session Deactivated...** \n  - Exercise duration: {}".format(exercised))
-
-async def get_gym(message):
-    """get gym session information"""
-
-    await message.delete()
-
-    if datastore.get_value('gymming'):
-        await message.channel.send("You began gymming: **{}**".format(gymtrack.get_session_start()))
-
-    else:
-        await message.channel.send("No **active** gym session...")
 
 async def help(message):
     """display helper information regarding RELAB"""
@@ -133,16 +80,16 @@ async def on_message(message):
         await snapshot(message)
 
     if msg.startswith('.study'):
-        await study(message)
+        await sesscomms.study(message)
 
     if msg.startswith('.getstudy'):
-        await get_study(message)
+        await sesscomms.get_study(message)
 
     if msg.startswith('.gym'):
-        await gym(message)
+        await sesscomms.gym(message)
 
     if msg.startswith('.getgym'):
-        await get_gym(message)
+        await sesscomms.get_gym(message)
 
     if msg.startswith('.help'):
         await help(message)

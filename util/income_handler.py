@@ -1,7 +1,3 @@
-from concurrent.futures import thread
-from re import L
-
-
 class IncomeHandle:
     '''class to handle the gross income and convert to payouts'''
 
@@ -44,17 +40,16 @@ class IncomeHandle:
 
         repayment = {'threshold': 2274, 'rate': 0.09}
 
-        return round((self._gross - repayment['threshold']) * repayment['rate'], 0)
+        return round(max(0, (self._gross - repayment['threshold']) * repayment['rate'], 0))
 
     @property
-    def get_take_home(self):
-        'provide the takehome wage'
+    def get_take_home(self, student_loan=0):
+        'provide the take home wage'
 
-        return self._gross - (self.get_nic + self.get_slt + self.get_tax)
+        return self._gross - (self.get_nic + (self.get_slt * student_loan) + self.get_tax)
 
 
-salary = IncomeHandle(45000, 77.07)
-print(salary.get_tax)
-print(salary.get_nic)
-print(salary.get_slt)
-print(salary.get_take_home)
+i = IncomeHandle(45000)
+
+print(i.get_nic, i.get_slt, i.get_tax, i.get_take_home)
+print(i.get_nic * 12, i.get_slt * 12, i.get_tax * 12, i.get_take_home * 12)
