@@ -1,14 +1,10 @@
-from store.handler import Handler
-from util.session_tracker import SessionTrack
-
-
 class SessionCommands:
 
-    def __init__(self, datastore=None, studytrack=None, gymtrack=None):
+    def __init__(self, datastore, studytrack, gymtrack):
         
-        self._datastore = datastore or Handler()
-        self._studytrack = studytrack or SessionTrack('study_records', 'studying', datastore=datastore)
-        self._gymtrack = gymtrack or SessionTrack('gym_records', 'gymming', datastore=datastore)
+        self._datastore = datastore
+        self._studytrack = studytrack
+        self._gymtrack = gymtrack
         
         sessions = ['studying', 'gymming']
         for session in sessions:

@@ -1,6 +1,7 @@
 import discord
 import os
 from dotenv import load_dotenv
+from tools.income_commands import IncomeCommands
 
 from store.handler import Handler
 from tools.session_commands import SessionCommands
@@ -17,6 +18,8 @@ studytrack = SessionTrack('study_records', 'studying', datastore=datastore)
 gymtrack = SessionTrack('gym_records', 'gymming', datastore=datastore)
 
 sesscomms = SessionCommands(datastore=datastore, studytrack=studytrack, gymtrack=gymtrack)
+incomcomms = IncomeCommands(datastore=datastore)
+
 
 @client.event
 async def on_ready():
@@ -94,5 +97,10 @@ async def on_message(message):
     if msg.startswith('.help'):
         await help(message)
 
+    if msg.startswith('.setsalary'):
+        await incomcomms.set_payroll_data(msg, 'grossSalary')
+    
+    if msg.startswith('.getsalary'):
+        await incomcomms.get_individual_payroll_data(message, 'grossSalary')
 
 client.run(os.getenv('TOKEN'))
