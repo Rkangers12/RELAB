@@ -1,9 +1,10 @@
+from datetime import date
 import discord
 import os
 from dotenv import load_dotenv
-from tools.income_commands import IncomeCommands
 
 from store.handler import Handler
+from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
 from util.session_tracker import SessionTrack
 from util.summary_report import SummaryReport
@@ -14,29 +15,34 @@ intents = discord.Intents.all()
 client = discord.Client(intents=intents)
 
 datastore = Handler()
-studytrack = SessionTrack('study_records', 'studying', datastore=datastore)
-gymtrack = SessionTrack('gym_records', 'gymming', datastore=datastore)
+studytrack = SessionTrack("study_records", "studying", datastore=datastore)
+gymtrack = SessionTrack("gym_records", "gymming", datastore=datastore)
 
-sesscomms = SessionCommands(datastore=datastore, studytrack=studytrack, gymtrack=gymtrack)
+sesscomms = SessionCommands(
+    datastore=datastore, studytrack=studytrack, gymtrack=gymtrack
+)
 incomcomms = IncomeCommands(datastore=datastore)
 
 
 @client.event
 async def on_ready():
-    print('\nWe have logged in as {0.user}'.format(client))
+    print("\nWe have logged in as {0.user}".format(client))
 
     summaryTask = SummaryReport(
-        channel_id=1012023361922150450, 
-        intents=intents, 
+        channel_id=1012023361922150450,
+        intents=intents,
         client=client,
         sessions=[
-            {'classVar': studytrack, 'sessionType': 'Study'},
-            {'classVar': gymtrack, 'sessionType': 'Gym'}
-        ])
+            {"classVar": studytrack, "sessionType": "Study"},
+            {"classVar": gymtrack, "sessionType": "Gym"},
+        ],
+    )
 
     if not summaryTask.statistic_report.is_running():
         summaryTask.statistic_report.start()  # if the task is not already running, start it.
-        print("Booted Background Process: Statistic Reporter - {0.user}\n".format(client))
+        print(
+            "Booted Background Process: Statistic Reporter - {0.user}\n".format(client)
+        )
 
 
 async def snapshot(message):
@@ -44,7 +50,9 @@ async def snapshot(message):
 
     await message.delete()
     datastore.snapshot()
-    await message.channel.send("**Your database has been backed up in a secure location.**")
+    await message.channel.send(
+        "**Your database has been backed up in a secure location.**"
+    )
 
 
 async def help(message):
@@ -61,46 +69,77 @@ async def help(message):
     cmd6 = "    - .getgym -> I tell you how long your gym session has been active."
     cmd7 = "    - .help     -> I provide some help to yourself, as is occurring now!"
 
-    support = '```{}\n\n{}\n\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n```'.format(greeting, message2, cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7)
-    
+    support = "```{}\n\n{}\n\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n```".format(
+        greeting, message2, cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7
+    )
+
     await message.channel.send(support)
+
 
 @client.event
 async def on_message(message):
 
     if message.author == client.user:
         return
-    
+
     msg = message.content
 
     # example of how we can restrict functionality to specific channels within the guild
     if message.channel.id == 1012023361922150450:  # channel id of the greetings channel
-        if msg.startswith('.hello'):
+        if msg.startswith(".hello"):
             await message.delete()
-            await message.channel.send("Hi {}, in the {} channel!".format(message.author, message.channel))
-                
-    if msg.startswith('.snapshot'):
+            await message.channel.send(
+                "Hi {}, in the {} channel!".format(message.author, message.channel)
+            )
+
+    if msg.startswith(".snapshot"):
         await snapshot(message)
 
-    if msg.startswith('.study'):
+    if msg.startswith(".study"):
         await sesscomms.study(message)
 
-    if msg.startswith('.getstudy'):
+    if msg.startswith(".getstudy"):
         await sesscomms.get_study(message)
 
-    if msg.startswith('.gym'):
+    if msg.startswith(".gym"):
         await sesscomms.gym(message)
 
-    if msg.startswith('.getgym'):
+    if msg.startswith(".getgym"):
         await sesscomms.get_gym(message)
 
-    if msg.startswith('.help'):
+    if msg.startswith(".help"):
         await help(message)
 
-    if msg.startswith('.setsalary'):
-        await incomcomms.set_payroll_data(msg, 'grossSalary')
-    
-    if msg.startswith('.getsalary'):
-        await incomcomms.get_individual_payroll_data(message, 'grossSalary')
+    if msg.startswith(".setsalary"):
+        await incomcomms.set_payroll_data(message, "grossSalary")
 
-client.run(os.getenv('TOKEN'))
+    if msg.startswith(".getsalary"):
+        await incomcomms.get_payroll_data(message, "grossSalary", "currency")
+
+    if msg.startswith(".setnotionals"):
+        await incomcomms.set_payroll_data(message, "notionals")
+
+    if msg.startswith(".getnotionals"):
+        await incomcomms.get_payroll_data(message, "notionals", "currency")
+
+    if msg.startswith(".setpaydate"):
+        await incomcomms.set_payroll_data(message, "payDay")
+
+    if msg.startswith(".getpaydate"):
+        await incomcomms.get_payroll_data(message, "payDay", "date")
+
+    if msg.startswith(".togglestudentloan"):
+        await incomcomms.toggle_student_loan(message, "activeStudentLoan")
+
+    if msg.startswith(".checkstudentloan"):
+        await incomcomms.check_student_loan(message, "activeStudentLoan")
+
+    # takehome breakdown GET
+    # if msg.startswith(".takehome"):
+    #     await incomcomms.get_takehome_breakdown(message)
+
+    # payroll settings GET
+    # gross details GET
+
+
+client.run(os.getenv("TOKEN"))
