@@ -72,6 +72,7 @@ class IncomeHandle:
     def get_take_home(self, student_loan=0):
         "provide the take home wage"
 
-        return self._gross - (
-            self.get_nic + (self.get_slt * student_loan) + self.get_tax
+        return round(
+            self._gross - (self.get_nic + (self.get_slt * student_loan) + self.get_tax),
+            2,
         )

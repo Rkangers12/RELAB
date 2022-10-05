@@ -1,11 +1,13 @@
-from datetime import date
 import discord
 import os
+import uuid
+
 from dotenv import load_dotenv
 
 from store.handler import Handler
 from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
+from util.handle_times import HandleTimes
 from util.session_tracker import SessionTrack
 from util.summary_report import SummaryReport
 
@@ -15,13 +17,14 @@ intents = discord.Intents.all()
 client = discord.Client(intents=intents)
 
 datastore = Handler()
+hand_time = HandleTimes()
 studytrack = SessionTrack("study_records", "studying", datastore=datastore)
 gymtrack = SessionTrack("gym_records", "gymming", datastore=datastore)
 
 sesscomms = SessionCommands(
     datastore=datastore, studytrack=studytrack, gymtrack=gymtrack
 )
-incomcomms = IncomeCommands(datastore=datastore)
+inc_coms = IncomeCommands(datastore=datastore)
 
 
 @client.event
@@ -111,35 +114,108 @@ async def on_message(message):
         await help(message)
 
     if msg.startswith(".setsalary"):
-        await incomcomms.set_payroll_data(message, "grossSalary")
+        await message.delete()
+        resp = inc_coms.set_payroll(msg, "grossSalary")
+
+        if resp == 200:
+            await message.channel.send("**Gross Salary** details updated. - RELAB")
+        elif resp == 404:
+            await message.channel.send("Please provide appropriate payroll data.")
 
     if msg.startswith(".getsalary"):
-        await incomcomms.get_payroll_data(message, "grossSalary", "currency")
+        await message.delete()
+        comms = "Payroll details by RELAB: \n    - Gross Salary: **£{}**"
+        await message.channel.send(comms.format(inc_coms.get("grossSalary")))
 
     if msg.startswith(".setnotionals"):
-        await incomcomms.set_payroll_data(message, "notionals")
+        await message.delete()
+        resp = inc_coms.set_payroll(msg, "notionals")
+
+        if resp == 200:
+            await message.channel.send("**Notionals** details updated. - RELAB")
+        elif resp == 404:
+            await message.channel.send("Please provide appropriate payroll data.")
 
     if msg.startswith(".getnotionals"):
-        await incomcomms.get_payroll_data(message, "notionals", "currency")
+        await message.delete()
+        comms = "Payroll details by RELAB: \n    - Notionals: **£{}**"
+        await message.channel.send(comms.format(inc_coms.get("notionals")))
 
     if msg.startswith(".setpaydate"):
-        await incomcomms.set_payroll_data(message, "payDay")
+        await message.delete()
+        resp = inc_coms.set_payroll(msg, "payDay")
+
+        if resp == 200:
+            await message.channel.send("**Pay Date** details updated. - RELAB")
+        elif resp == 404:
+            await message.channel.send("Please provide appropriate payroll data.")
 
     if msg.startswith(".getpaydate"):
-        await incomcomms.get_payroll_data(message, "payDay", "date")
+        await message.delete()
+        comms = "Payroll details by RELAB: \n    - Next Pay Day: **{}**"
+        await message.channel.send(
+            comms.format(
+                hand_time.format_a_day(int(inc_coms.get("payDay")), weekday=True)
+            )
+        )
 
     if msg.startswith(".togglestudentloan"):
-        await incomcomms.toggle_student_loan(message, "activeStudentLoan")
+        await message.delete()
+        comms = "Student Loan now **{}**. - RELAB"
+        await message.channel.send(comms.format(inc_coms.sl_toggle("activeSL")))
 
     if msg.startswith(".checkstudentloan"):
-        await incomcomms.check_student_loan(message, "activeStudentLoan")
+        await message.delete()
+        # await inc_coms.check_student_loan(message, "activeSL")
+        comms = "Payroll details by RELAB: \n    - Student Loan: **{}**"
+        await message.channel.send(
+            comms.format("active" if inc_coms.sl_check("activeSL") else "inactive")
+        )
 
-    # takehome breakdown GET
-    # if msg.startswith(".takehome"):
-    #     await incomcomms.get_takehome_breakdown(message)
+    if msg.startswith(".takehome"):
+        await message.delete()
+        await message.channel.send(
+            "Your income after tax is **£{}** (**{}**). - RELAB".format(
+                inc_coms.get_takehome(),
+                hand_time.format_a_day(int(inc_coms.get("payDay")), weekday=True),
+            )
+        )
 
-    # payroll settings GET
-    # gross details GET
+    if msg.startswith(".payrollsettings"):
+        await message.delete()
+        comms = (
+            "Payroll details by RELAB:\n    "
+            "- Gross Salary: **£{}**\n    "
+            "- Notionals: **£{}**\n    "
+            "- Next Pay Day: **{}**\n    "
+            "- Student Loan: **{}**"
+        )
+
+        await message.channel.send(
+            comms.format(
+                inc_coms.get("grossSalary"),
+                inc_coms.get("notionals"),
+                hand_time.format_a_day(int(inc_coms.get("payDay")), weekday=True),
+                "active" if inc_coms.sl_check("activeSL") else "inactive",
+            )
+        )
+
+    if msg.startswith(".payslip"):
+        await message.delete()
+
+        slip = inc_coms.get_payslip()
+
+        comm1 = "Payslip #**{}** by RELAB:\n    ".format(uuid.uuid1())
+        comm2 = "- Gross income: **  £{}**\n    ".format(slip.get("gross", 0))
+        comm3 = "- Tax paid: **- £{}**\n    ".format(slip.get("tax", 0))
+        comm4 = "- Employee NIC: **- £{}**\n    ".format(slip.get("nic", 0))
+        if inc_coms.sl_check("activeSL"):
+            comm5 = "- Student loan paid: **- £{}**\n    ".format(slip.get("slt", 0))
+        else:
+            comm5 = ""
+        comm6 = "\n    - Income recievable: **  £{}**".format(slip.get("takehome", 0))
+
+        await message.channel.send(comm1 + comm2 + comm3 + comm4 + comm5 + comm6)
 
 
 client.run(os.getenv("TOKEN"))

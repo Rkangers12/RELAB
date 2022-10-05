@@ -1,3 +1,4 @@
+from email.policy import default
 from util.handle_times import HandleTimes
 from util.income_handler import IncomeHandle
 
@@ -18,7 +19,7 @@ class IncomeCommands:
 
         return self._datastore.get_value("payrollData", {})
 
-    def get_payroll_value(self, payroll_key, default="unavailable"):
+    def get_payroll_value(self, payroll_key, default=None):
         """get the value of the requested payroll data"""
 
         return self.get_payroll.get(payroll_key, default)
@@ -32,16 +33,12 @@ class IncomeCommands:
         self._datastore.write_all(db)
 
     # class methods
-
-    async def set_payroll_data(self, message, payroll_key):
-        """store data for payroll within the database"""
+    def set_payroll(self, content, payroll_key):
+        """store the data for the payroll within the database"""
 
         try:
-            payroll_value = float(message.content.split(" ")[1])
+            payroll_value = float(content.split(" ")[1])
         except (IndexError, ValueError):
-            await message.channel.send(
-                "Please provide me some with appropriate payroll information."
-            )
             return 404
 
         if payroll_key == "payDay":
@@ -49,30 +46,16 @@ class IncomeCommands:
 
         self.set_payroll_value(payroll_key, payroll_value)
 
-        await message.channel.send(
-            "RELAB has updated your **{}** payroll details.".format(payroll_key)
-        )
+        return 200
 
-    async def get_payroll_data(self, message, payroll_key, of_type=None):
-        """get individual data within payroll stored within database"""
+    def get(self, payroll_key):
+        """get individual data within payroll from database"""
 
-        val = self.get_payroll_value(payroll_key)
+        val = self.get_payroll_value(payroll_key, default=0)
 
-        if val != "unavailable":
-            if of_type == "date":
-                print(int(val))
-                val = self._handletimes.format_a_day(int(val), weekday=True).isoformat()
-            elif of_type == "currency":
-                val = "£" + str(float(val))
+        return val
 
-        await message.channel.send(
-            "RELAB has retrieved your payroll details:\n    - {}: **{}**".format(
-                payroll_key,
-                val,
-            )
-        )
-
-    async def toggle_student_loan(self, message, slt_key):
+    def sl_toggle(self, slt_key):
         """toggle student loan setting"""
 
         loan_setting = self.get_payroll_value(slt_key, default=False)
@@ -84,26 +67,38 @@ class IncomeCommands:
         else:
             self.set_payroll_value(slt_key, True)
 
-        await message.channel.send(
-            "RELAB has updated your student loan settings - now **{}**.".format(setting)
-        )
+        return setting
 
-    async def check_student_loan(self, message, slt_key):
+    def sl_check(self, slt_key):
         """check student loan setting"""
 
-        sl = self.get_payroll_value(slt_key, default=False)
+        return self.get_payroll_value(slt_key, default=False)
 
-        setting = "**inactive**"
-        if sl:
-            setting = "**active**"
+    def get_takehome(self):
+        """retrieve a breakdow n of the take home pay for the user"""
 
-        await message.channel.send(
-            "RELAB has retrieved your payroll details:\n    - {}: **{}**".format(
-                "Student Loan", setting
-            )
+        self._incomehandle = IncomeHandle(
+            self.get("grossSalary"), notionals=self.get("notionals")
         )
 
-    # async def get_takehome_breakdown(self, message):
-    #     """retrieve a breakdown of the takehome summary for user"""
+        return self._incomehandle.get_take_home(student_loan=self.sl_check("activeSL"))
 
-    #     self._incomehandle = IncomeHandle()
+    def get_payslip(self):
+        """retrieve payslip details including gross, nic, tax, slt, takehome"""
+
+        gross = self.get("grossSalary")
+        self._inc_hand = IncomeHandle(gross, notionals=self.get("notionals"))
+
+        payslip = {
+            "gross": gross,
+            "tax": self._inc_hand.get_tax,
+            "nic": self._inc_hand.get_nic,
+            "takehome": self._inc_hand.get_take_home(
+                student_loan=self.sl_check("activeSL")
+            ),
+        }
+
+        if self.sl_check("activeSL"):
+            payslip["slt"] = self._inc_hand.get_slt
+
+        return payslip
