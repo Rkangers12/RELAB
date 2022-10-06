@@ -9,7 +9,7 @@ from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
 from util.handle_times import HandleTimes
 from util.session_tracker import SessionTrack
-from util.summary_report import SummaryReport
+from jobs.summary_report import SummaryReport
 
 
 load_dotenv()
@@ -205,15 +205,15 @@ async def on_message(message):
 
         slip = inc_coms.get_payslip()
 
-        comm1 = "Payslip #**{}** by RELAB:\n    ".format(uuid.uuid1())
-        comm2 = "- Gross income: **  £{}**\n    ".format(slip.get("gross", 0))
-        comm3 = "- Tax paid: **- £{}**\n    ".format(slip.get("tax", 0))
-        comm4 = "- Employee NIC: **- £{}**\n    ".format(slip.get("nic", 0))
+        comm1 = "```Payslip #{} by RELAB:\n    ".format(uuid.uuid1())
+        comm2 = "- Gross income: £{}\n    ".format(round(slip.get("gross", 0) / 12, 2))
+        comm3 = "- Tax paid: £-{}\n    ".format(slip.get("tax", 0))
+        comm4 = "- Employee NIC: £-{}\n    ".format(slip.get("nic", 0))
         if inc_coms.sl_check("activeSL"):
-            comm5 = "- Student loan paid: **- £{}**\n    ".format(slip.get("slt", 0))
+            comm5 = "- Student loan paid: £-{}\n    ".format(slip.get("slt", 0))
         else:
             comm5 = ""
-        comm6 = "\n    - Income recievable: **  £{}**".format(slip.get("takehome", 0))
+        comm6 = "\n    - Income recievable: £{}```".format(slip.get("takehome", 0))
 
         await message.channel.send(comm1 + comm2 + comm3 + comm4 + comm5 + comm6)
 
