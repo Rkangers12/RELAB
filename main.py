@@ -175,7 +175,6 @@ async def on_message(message):
 
     if msg.startswith(".checkstudentloan"):
         await message.delete()
-        # await inc_coms.check_student_loan(message, "activeSL")
         comms = "Payroll details by RELAB: \n    - Student Loan: **{}**"
         await message.channel.send(
             comms.format("active" if inc_coms.sl_check("activeSL") else "inactive")
