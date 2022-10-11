@@ -113,3 +113,9 @@ class HandleTimes:
             date_period = date(year=now.year, month=(now.month + month_incre), day=day)
 
         return date_period
+
+    def date_to_ts(self, date_obj):
+        """convert a datetime.date object into a timestamp"""
+
+        dt_obj = datetime.strptime(str(date_obj) + " 00:00:00", "%Y-%m-%d %H:%M:%S")
+        return dt_obj.timestamp()

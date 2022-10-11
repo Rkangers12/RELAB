@@ -1,7 +1,6 @@
 import discord
 import os
-import uuid
-
+from uuid import uuid4
 from dotenv import load_dotenv
 
 from store.handler import Handler
@@ -9,6 +8,7 @@ from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
 from util.handle_times import HandleTimes
 from util.session_tracker import SessionTrack
+from jobs.payslip_report import PayslipReport
 from jobs.summary_report import SummaryReport
 
 
@@ -43,9 +43,15 @@ async def on_ready():
 
     if not summaryTask.statistic_report.is_running():
         summaryTask.statistic_report.start()  # if the task is not already running, start it.
-        print(
-            "Booted Background Process: Statistic Reporter - {0.user}\n".format(client)
-        )
+        print("Booted Background Process: Statistic Reporter - {0.user}".format(client))
+
+    payslipTask = PayslipReport(
+        channel_id=1012023361922150450, intents=intents, client=client
+    )
+
+    if not payslipTask.payslip_reporter.is_running():
+        payslipTask.payslip_reporter.start()  # if the task is not already running, start it.
+        print("Booted Background Process: Payslip Reporter - {0.user}\n".format(client))
 
 
 async def snapshot(message):
@@ -82,10 +88,13 @@ async def help(message):
 @client.event
 async def on_message(message):
 
-    if message.author == client.user:
-        return
-
     msg = message.content
+
+    if message.author == client.user:
+        if msg.startswith(".payslip"):
+            pass
+        else:
+            return
 
     # example of how we can restrict functionality to specific channels within the guild
     if message.channel.id == 1012023361922150450:  # channel id of the greetings channel
@@ -205,12 +214,14 @@ async def on_message(message):
 
         slip = inc_coms.get_payslip()
 
-        comm1 = "```Payslip #{} by RELAB:\n    ".format(uuid.uuid1())
-        comm2 = "- Gross income: £{}\n    ".format(round(slip.get("gross", 0) / 12, 2))
-        comm3 = "- Tax paid: £-{}\n    ".format(slip.get("tax", 0))
-        comm4 = "- Employee NIC: £-{}\n    ".format(slip.get("nic", 0))
+        comm1 = "**Payslip #{} RELAB**:\n".format(str(uuid4().hex[:10]))
+        comm2 = "```    - Gross income: £{}\n    ".format(
+            round(slip.get("gross", 0) / 12, 2)
+        )
+        comm3 = "- Tax paid: - £{}\n    ".format(slip.get("tax", 0))
+        comm4 = "- Employee NIC: - £{}\n    ".format(slip.get("nic", 0))
         if inc_coms.sl_check("activeSL"):
-            comm5 = "- Student loan paid: £-{}\n    ".format(slip.get("slt", 0))
+            comm5 = "- Student loan paid: - £{}\n    ".format(slip.get("slt", 0))
         else:
             comm5 = ""
         comm6 = "\n    - Income recievable: £{}```".format(slip.get("takehome", 0))

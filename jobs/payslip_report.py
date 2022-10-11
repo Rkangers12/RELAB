@@ -1,7 +1,8 @@
+import py_compile
 import discord
 import asyncio
 
-from datetime import datetime, time, timedelta
+from datetime import time, datetime, timedelta
 from discord.ext import tasks
 
 from store.handler import Handler
@@ -20,18 +21,51 @@ class PayslipReport:
         self._intents = intents or discord.Intents.all()
         self._client = client or discord.Client(intents=self._intents)
 
-        self._task_time = time(hour=00, minute=1, second=00)
+        self._task_time = time(hour=8, minute=00, second=00)
 
-    def get_paydate_timestamp(self):
+    def get_paydate_timestamp(self, paydate):
         """extract the coming paydate and convert to timestamp"""
 
-        payday = self._ht.format_a_day(int(self._ic.get("payDay")), weekday=True)
-        return payday
+        return self._ht.date_to_ts(paydate)
 
     async def background_reporter(self):
         """checks if a new payday is coming up and to send out alerts for reminders"""
 
         channel = self._client.get_channel(self._chanel_id)
+
+        payday = self._ht.format_a_day(int(self._ic.get("payDay")), weekday=True)
+        paydate_ts = self.get_paydate_timestamp(payday)
+
+        print(
+            self._ht.convert_timestamp(paydate_ts),
+            self._ht.convert_timestamp(paydate_ts - 86400 * 7),
+        )
+
+        now = self._ht.current_timestamp()
+
+        if paydate_ts - 86400 * 8 < now < paydate_ts - 86400 * 6:
+            print("REMINDER: You are due to be paid in 7 days, **{}**.".format(payday))
+            await channel.send(
+                "REMINDER: You are due to be paid in 7 days, **{}**.".format(payday)
+            )
+
+        if paydate_ts - 86400 * 4 < now < paydate_ts - 86400 * 2:
+            print("REMINDER: You are due to be paid in 3 days, **{}**.".format(payday))
+            await channel.send(
+                "REMINDER: You are due to be paid in 3 days, **{}**.".format(payday)
+            )
+
+        if paydate_ts - 86400 * 2 < now < paydate_ts:
+            print("REMINDER: You are due to be paid in 1 day, **{}**.".format(payday))
+            await channel.send(
+                "REMINDER: You are due to be paid in 1 day, **{}**.".format(payday)
+            )
+
+        if True:
+            await channel.send(
+                "RELAB has determined today as your pay date. See below for payslip:."
+            )
+            await channel.send(".payslip")
 
     @tasks.loop(seconds=600)
     async def payslip_reporter(self):
