@@ -6,10 +6,11 @@ from dotenv import load_dotenv
 from store.handler import Handler
 from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
-from util.handle_times import HandleTimes
-from util.session_tracker import SessionTrack
 from jobs.payslip_report import PayslipReport
 from jobs.summary_report import SummaryReport
+from util.handle_times import HandleTimes
+from util.monitor_bills import BillsMonitor
+from util.session_tracker import SessionTrack
 
 
 load_dotenv()
@@ -25,6 +26,7 @@ sesscomms = SessionCommands(
     datastore=datastore, studytrack=studytrack, gymtrack=gymtrack
 )
 inc_coms = IncomeCommands(datastore=datastore)
+bills_monitor = BillsMonitor(datastore=datastore)
 
 
 @client.event
@@ -226,6 +228,23 @@ async def on_message(message):
         comm6 = "\n    - Income recievable: £{}```".format(slip.get("takehome", 0))
 
         await message.channel.send(comm1 + comm2 + comm3 + comm4 + comm5 + comm6)
+
+    if msg.startswith(".setbill"):
+        await message.delete()
+        resp = bills_monitor.set(msg)
+
+        if resp == 200:
+            await message.channel.send("New bill data has been registered. - RELAB")
+        elif resp == 404:
+            await message.channel.send("Error registering bill data - RELAB.")
+
+    if msg.startswith(".getbill"):
+        await message.delete()
+
+    if msg.startswith(".deletebill"):
+        await message.delete()
+    if msg.startswith(".allbills"):
+        await message.delete()
 
 
 client.run(os.getenv("TOKEN"))

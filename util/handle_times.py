@@ -119,3 +119,13 @@ class HandleTimes:
 
         dt_obj = datetime.strptime(str(date_obj) + " 00:00:00", "%Y-%m-%d %H:%M:%S")
         return dt_obj.timestamp()
+
+    def day_suffix(self, myday):
+        """return the suffix of the day (int)"""
+
+        dayix = ["th", "st", "nd", "rd"]
+
+        if myday % 10 in [1, 2, 3] and myday not in [11, 12, 13]:
+            return dayix[myday % 10]
+        else:
+            return dayix[0]
