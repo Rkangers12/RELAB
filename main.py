@@ -236,15 +236,46 @@ async def on_message(message):
         if resp == 200:
             await message.channel.send("New bill data has been registered. - RELAB")
         elif resp == 404:
-            await message.channel.send("Error registering bill data - RELAB.")
+            await message.channel.send("Error registering bill data. - RELAB")
 
     if msg.startswith(".getbill"):
         await message.delete()
 
+        resp = bills_monitor.get_bill(msg)
+
+        if resp == 404:
+            await message.channel.send("Bill information provided was invalid. - RELAB")
+            return
+
+        await message.channel.send(bills_monitor.format_bill(resp))
+
+    if msg.startswith(".getmetabill"):
+        await message.delete()
+
+        resp = bills_monitor.get_bill_meta(msg)
+
+        if resp == 404:
+            await message.channel.send("Bill information provided was invalid. - RELAB")
+            return
+
+        await message.channel.send(bills_monitor.format_bill(resp))
+
     if msg.startswith(".deletebill"):
         await message.delete()
+        resp = bills_monitor.delete(msg)
+
+        if resp == 200:
+            await message.channel.send("Bill data has been deleted. - RELAB")
+        elif resp == 404:
+            await message.channel.send("Error deleting bill data. - RELAB")
+
     if msg.startswith(".allbills"):
         await message.delete()
+
+        resp = bills_monitor.format_bill(bills_monitor.get_all())
+
+        for msg_res in resp:
+            await message.channel.send(msg_res)
 
 
 client.run(os.getenv("TOKEN"))

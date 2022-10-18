@@ -24,7 +24,7 @@ class BillsMonitor:
         if bill_metadata is None:
             return self.get_bills.get(bill, {})
 
-        return self.get_bills.get(bill).get(bill_metadata, {})
+        return self.get_bills.get(bill, {}).get(bill_metadata, {})
 
     def store_bill_metadata(self, bill, bill_metadata, bills_value):
         """store the value relating to the metadata of the bill"""
@@ -73,6 +73,20 @@ class BillsMonitor:
             float(data.get("cost") or bill_store.get("expense", 0)),
         )
 
+    def format_bill(self, data):
+        """format the bill data into a message for users"""
+        print(data)
+
+        dday = data.get("debit_day", False)
+        md_day = True if data.get("debit_day") is not None else False
+        md_exp = True if data.get("expense") is not None else False
+
+        bill = "**{}** ".format(data.get("bill")).title()
+        bill_day = "is payable on the **{}{}** ".format(dday, self._ht.day_suffix(dday))
+        bill_exp = "for the amount £**{}**".format(data.get("expense"))
+
+        return bill + (bill_day if md_day else "") + (bill_exp if md_exp else "") + "."
+
     # class functional methods
     def set(self, content):
         """set the data for the bill"""
@@ -85,14 +99,33 @@ class BillsMonitor:
         self.process_bill(bill_dict)
         return 200
 
-    def get(self, content):
+    def get_bill(self, content):
         """get the individual data within bills from database"""
 
         bill_dict = self.sort_message_content(content)
+        if bill_dict.get("bill") not in self.get_bills.keys():
+            return 404
 
-        return self.get_bills_value(
-            bill_dict.get("bill"), bill_metadata=bill_dict.get("metadata", None)
-        )
+        bill_dict.pop("metadata", 0)
+
+        return bill_dict | self.get_bills_value(bill_dict.get("bill"))
+
+    def get_bill_meta(self, content):
+        """get the individual metadata for a bill from database"""
+
+        bill_dict = self.sort_message_content(content)
+
+        if bill_dict.get("bill") not in self.get_bills.keys():
+            return 404
+
+        try:
+            bill_dict[bill_dict.pop("metadata")] = self.get_bills_value(
+                bill_dict.get("bill"), bill_metadata=bill_dict.get("metadata", None)
+            )
+        except KeyError:
+            return 404
+
+        return bill_dict
 
     def get_all(self):
         """get all bills within bills from database"""
@@ -100,18 +133,10 @@ class BillsMonitor:
         bills = self.get_bills
         messages = []
 
-        date_suffix = None
-
         for bill in bills:
             bill_info = bills.get(bill, {})
-            messages.append(
-                "{} bill is payable on the {}{} for the amount showing £{}.".format(
-                    bill.title(),
-                    bill_info.get("debit_day"),
-                    self._ht.day_suffix(bill_info.get("debit_day")),
-                    bill_info.get("expense"),
-                )
-            )
+            bill_info["bill"] = bill
+            messages.append(self.format_bill(bill_info))
 
         return messages
 
@@ -125,6 +150,11 @@ class BillsMonitor:
 
         db = self._datastore.get()
         bills_db = db.get("billsData", {})
-        bills_db.pop(bill_dict.get("bill"), None)
+        try:
+            bills_db.pop(bill_dict.get("bill"))
+        except KeyError:
+            return 404
 
         self._datastore.write_all(db)
+
+        return 200
