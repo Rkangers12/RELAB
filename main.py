@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from store.handler import Handler
 from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
+from jobs.bills_report import BillsReport
 from jobs.payslip_report import PayslipReport
 from jobs.summary_report import SummaryReport
 from util.handle_times import HandleTimes
@@ -34,7 +35,7 @@ async def on_ready():
     print("\nWe have logged in as {0.user}".format(client))
 
     summaryTask = SummaryReport(
-        channel_id=1012023361922150450,
+        channel_id=int(os.getenv("SESSIONS_CHANNEL")),
         intents=intents,
         client=client,
         sessions=[
@@ -45,15 +46,27 @@ async def on_ready():
 
     if not summaryTask.statistic_report.is_running():
         summaryTask.statistic_report.start()  # if the task is not already running, start it.
-        print("Booted Background Process: Statistic Reporter - {0.user}".format(client))
+        print(
+            "Booted Background Process #1: Statistic Reporter - {0.user}".format(client)
+        )
 
     payslipTask = PayslipReport(
-        channel_id=1012023361922150450, intents=intents, client=client
+        channel_id=int(os.getenv("PAYSLIP_CHANNEL")), intents=intents, client=client
     )
 
     if not payslipTask.payslip_reporter.is_running():
         payslipTask.payslip_reporter.start()  # if the task is not already running, start it.
-        print("Booted Background Process: Payslip Reporter - {0.user}\n".format(client))
+        print(
+            "Booted Background Process #2: Payslip Reporter - {0.user}".format(client)
+        )
+
+    billTask = BillsReport(
+        channel_id=int(os.getenv("BILLS_CHANNEL")), intents=intents, client=client
+    )
+
+    if not billTask.bill_reporter.is_running():
+        billTask.bill_reporter.start()  # if the task is not already running, start it.
+        print("Booted Background Process #3: Bill Reporter - {0.user}\n".format(client))
 
 
 async def snapshot(message):
@@ -62,7 +75,9 @@ async def snapshot(message):
     await message.delete()
     datastore.snapshot()
     await message.channel.send(
-        "**Your database has been backed up in a secure location.**"
+        "**[{}] - Database backed up to secure location.**".format(
+            hand_time.format_a_day()
+        )
     )
 
 
@@ -98,184 +113,190 @@ async def on_message(message):
         else:
             return
 
-    # example of how we can restrict functionality to specific channels within the guild
-    if message.channel.id == 1012023361922150450:  # channel id of the greetings channel
-        if msg.startswith(".hello"):
+    if message.channel.id == int(os.getenv("SNAPSHOTS_CHANNEL")):
+        if msg.startswith(".snapshot"):
+            await snapshot(message)
+
+    if message.channel.id == int(os.getenv("HELP_CHANNEL")):
+        if msg.startswith(".help"):
+            await help(message)
+
+    if message.channel.id == int(os.getenv("BOT_HELPER")):
+        if msg.startswith(".channels"):
+            await message.channel.send("Success")
+
+            for channel in client.get_all_channels():
+                print(channel.id, channel.name)
+
+    if message.channel.id == int(os.getenv("RELAB_CHANNEL")):
+        if msg.startswith(".study"):
+            await sesscomms.study(message)
+
+        if msg.startswith(".getstudy"):
+            await sesscomms.get_study(message)
+
+        if msg.startswith(".gym"):
+            await sesscomms.gym(message)
+
+        if msg.startswith(".getgym"):
+            await sesscomms.get_gym(message)
+
+        if msg.startswith(".setsalary"):
+            await message.delete()
+            resp = inc_coms.set_payroll(msg, "grossSalary")
+
+            if resp == 200:
+                await message.channel.send("**Gross Salary** details updated. - RELAB")
+            elif resp == 404:
+                await message.channel.send("Please provide appropriate payroll data.")
+
+        if msg.startswith(".getsalary"):
+            await message.delete()
+            comms = "Payroll details by RELAB: \n    - Gross Salary: **£{}**"
+            await message.channel.send(comms.format(inc_coms.get("grossSalary")))
+
+        if msg.startswith(".setnotionals"):
+            await message.delete()
+            resp = inc_coms.set_payroll(msg, "notionals")
+
+            if resp == 200:
+                await message.channel.send("**Notionals** details updated. - RELAB")
+            elif resp == 404:
+                await message.channel.send("Please provide appropriate payroll data.")
+
+        if msg.startswith(".getnotionals"):
+            await message.delete()
+            comms = "Payroll details by RELAB: \n    - Notionals: **£{}**"
+            await message.channel.send(comms.format(inc_coms.get("notionals")))
+
+        if msg.startswith(".setpaydate"):
+            await message.delete()
+            resp = inc_coms.set_payroll(msg, "payDay")
+
+            if resp == 200:
+                await message.channel.send("**Pay Date** details updated. - RELAB")
+            elif resp == 404:
+                await message.channel.send("Please provide appropriate payroll data.")
+
+        if msg.startswith(".getpaydate"):
+            await message.delete()
+            comms = "Payroll details by RELAB: \n    - Next Pay Day: **{}**"
+            await message.channel.send(
+                comms.format(
+                    hand_time.format_a_day(int(inc_coms.get("payDay")), weekday=True)
+                )
+            )
+
+        if msg.startswith(".togglestudentloan"):
+            await message.delete()
+            comms = "Student Loan now **{}**. - RELAB"
+            await message.channel.send(comms.format(inc_coms.sl_toggle("activeSL")))
+
+        if msg.startswith(".checkstudentloan"):
+            await message.delete()
+            comms = "Payroll details by RELAB: \n    - Student Loan: **{}**"
+            await message.channel.send(
+                comms.format("active" if inc_coms.sl_check("activeSL") else "inactive")
+            )
+
+        if msg.startswith(".takehome"):
             await message.delete()
             await message.channel.send(
-                "Hi {}, in the {} channel!".format(message.author, message.channel)
+                "Your income after tax is **£{}** (**{}**). - RELAB".format(
+                    inc_coms.get_takehome(),
+                    hand_time.format_a_day(int(inc_coms.get("payDay")), weekday=True),
+                )
             )
 
-    if msg.startswith(".snapshot"):
-        await snapshot(message)
-
-    if msg.startswith(".study"):
-        await sesscomms.study(message)
-
-    if msg.startswith(".getstudy"):
-        await sesscomms.get_study(message)
-
-    if msg.startswith(".gym"):
-        await sesscomms.gym(message)
-
-    if msg.startswith(".getgym"):
-        await sesscomms.get_gym(message)
-
-    if msg.startswith(".help"):
-        await help(message)
-
-    if msg.startswith(".setsalary"):
-        await message.delete()
-        resp = inc_coms.set_payroll(msg, "grossSalary")
-
-        if resp == 200:
-            await message.channel.send("**Gross Salary** details updated. - RELAB")
-        elif resp == 404:
-            await message.channel.send("Please provide appropriate payroll data.")
-
-    if msg.startswith(".getsalary"):
-        await message.delete()
-        comms = "Payroll details by RELAB: \n    - Gross Salary: **£{}**"
-        await message.channel.send(comms.format(inc_coms.get("grossSalary")))
-
-    if msg.startswith(".setnotionals"):
-        await message.delete()
-        resp = inc_coms.set_payroll(msg, "notionals")
-
-        if resp == 200:
-            await message.channel.send("**Notionals** details updated. - RELAB")
-        elif resp == 404:
-            await message.channel.send("Please provide appropriate payroll data.")
-
-    if msg.startswith(".getnotionals"):
-        await message.delete()
-        comms = "Payroll details by RELAB: \n    - Notionals: **£{}**"
-        await message.channel.send(comms.format(inc_coms.get("notionals")))
-
-    if msg.startswith(".setpaydate"):
-        await message.delete()
-        resp = inc_coms.set_payroll(msg, "payDay")
-
-        if resp == 200:
-            await message.channel.send("**Pay Date** details updated. - RELAB")
-        elif resp == 404:
-            await message.channel.send("Please provide appropriate payroll data.")
-
-    if msg.startswith(".getpaydate"):
-        await message.delete()
-        comms = "Payroll details by RELAB: \n    - Next Pay Day: **{}**"
-        await message.channel.send(
-            comms.format(
-                hand_time.format_a_day(int(inc_coms.get("payDay")), weekday=True)
+        if msg.startswith(".payrollsettings"):
+            await message.delete()
+            comms = (
+                "Payroll details by RELAB:\n    "
+                "- Gross Salary: **£{}**\n    "
+                "- Notionals: **£{}**\n    "
+                "- Next Pay Day: **{}**\n    "
+                "- Student Loan: **{}**"
             )
-        )
 
-    if msg.startswith(".togglestudentloan"):
-        await message.delete()
-        comms = "Student Loan now **{}**. - RELAB"
-        await message.channel.send(comms.format(inc_coms.sl_toggle("activeSL")))
-
-    if msg.startswith(".checkstudentloan"):
-        await message.delete()
-        comms = "Payroll details by RELAB: \n    - Student Loan: **{}**"
-        await message.channel.send(
-            comms.format("active" if inc_coms.sl_check("activeSL") else "inactive")
-        )
-
-    if msg.startswith(".takehome"):
-        await message.delete()
-        await message.channel.send(
-            "Your income after tax is **£{}** (**{}**). - RELAB".format(
-                inc_coms.get_takehome(),
-                hand_time.format_a_day(int(inc_coms.get("payDay")), weekday=True),
+            await message.channel.send(
+                comms.format(
+                    inc_coms.get("grossSalary"),
+                    inc_coms.get("notionals"),
+                    hand_time.format_a_day(int(inc_coms.get("payDay")), weekday=True),
+                    "active" if inc_coms.sl_check("activeSL") else "inactive",
+                )
             )
-        )
 
-    if msg.startswith(".payrollsettings"):
-        await message.delete()
-        comms = (
-            "Payroll details by RELAB:\n    "
-            "- Gross Salary: **£{}**\n    "
-            "- Notionals: **£{}**\n    "
-            "- Next Pay Day: **{}**\n    "
-            "- Student Loan: **{}**"
-        )
+        if msg.startswith(".payslip"):
+            await message.delete()
 
-        await message.channel.send(
-            comms.format(
-                inc_coms.get("grossSalary"),
-                inc_coms.get("notionals"),
-                hand_time.format_a_day(int(inc_coms.get("payDay")), weekday=True),
-                "active" if inc_coms.sl_check("activeSL") else "inactive",
+            slip = inc_coms.get_payslip()
+
+            comm1 = "**Payslip #{} RELAB**:\n".format(str(uuid4().hex[:10]))
+            comm2 = "```    - Gross income: £{}\n    ".format(
+                round(slip.get("gross", 0) / 12, 2)
             )
-        )
+            comm3 = "- Tax paid: - £{}\n    ".format(slip.get("tax", 0))
+            comm4 = "- Employee NIC: - £{}\n    ".format(slip.get("nic", 0))
+            if inc_coms.sl_check("activeSL"):
+                comm5 = "- Student loan paid: - £{}\n    ".format(slip.get("slt", 0))
+            else:
+                comm5 = ""
+            comm6 = "\n    - Income recievable: £{}```".format(slip.get("takehome", 0))
 
-    if msg.startswith(".payslip"):
-        await message.delete()
+            await message.channel.send(comm1 + comm2 + comm3 + comm4 + comm5 + comm6)
 
-        slip = inc_coms.get_payslip()
+        if msg.startswith(".setbill"):
+            await message.delete()
+            resp = bills_monitor.set(msg)
 
-        comm1 = "**Payslip #{} RELAB**:\n".format(str(uuid4().hex[:10]))
-        comm2 = "```    - Gross income: £{}\n    ".format(
-            round(slip.get("gross", 0) / 12, 2)
-        )
-        comm3 = "- Tax paid: - £{}\n    ".format(slip.get("tax", 0))
-        comm4 = "- Employee NIC: - £{}\n    ".format(slip.get("nic", 0))
-        if inc_coms.sl_check("activeSL"):
-            comm5 = "- Student loan paid: - £{}\n    ".format(slip.get("slt", 0))
-        else:
-            comm5 = ""
-        comm6 = "\n    - Income recievable: £{}```".format(slip.get("takehome", 0))
+            if resp == 200:
+                await message.channel.send("New bill data has been registered. - RELAB")
+            elif resp == 404:
+                await message.channel.send("Error registering bill data. - RELAB")
 
-        await message.channel.send(comm1 + comm2 + comm3 + comm4 + comm5 + comm6)
+        if msg.startswith(".getbill"):
+            await message.delete()
 
-    if msg.startswith(".setbill"):
-        await message.delete()
-        resp = bills_monitor.set(msg)
+            resp = bills_monitor.get_bill(msg)
 
-        if resp == 200:
-            await message.channel.send("New bill data has been registered. - RELAB")
-        elif resp == 404:
-            await message.channel.send("Error registering bill data. - RELAB")
+            if resp == 404:
+                await message.channel.send(
+                    "Bill information provided was invalid. - RELAB"
+                )
+                return
 
-    if msg.startswith(".getbill"):
-        await message.delete()
+            await message.channel.send(bills_monitor.format_bill(resp))
 
-        resp = bills_monitor.get_bill(msg)
+        if msg.startswith(".getmetabill"):
+            await message.delete()
 
-        if resp == 404:
-            await message.channel.send("Bill information provided was invalid. - RELAB")
-            return
+            resp = bills_monitor.get_bill_meta(msg)
 
-        await message.channel.send(bills_monitor.format_bill(resp))
+            if resp == 404:
+                await message.channel.send(
+                    "Bill information provided was invalid. - RELAB"
+                )
+                return
 
-    if msg.startswith(".getmetabill"):
-        await message.delete()
+            await message.channel.send(bills_monitor.format_bill(resp))
 
-        resp = bills_monitor.get_bill_meta(msg)
+        if msg.startswith(".deletebill"):
+            await message.delete()
+            resp = bills_monitor.delete(msg)
 
-        if resp == 404:
-            await message.channel.send("Bill information provided was invalid. - RELAB")
-            return
+            if resp == 200:
+                await message.channel.send("Bill data has been deleted. - RELAB")
+            elif resp == 404:
+                await message.channel.send("Error deleting bill data. - RELAB")
 
-        await message.channel.send(bills_monitor.format_bill(resp))
+        if msg.startswith(".allbills"):
+            await message.delete()
 
-    if msg.startswith(".deletebill"):
-        await message.delete()
-        resp = bills_monitor.delete(msg)
+            resp = bills_monitor.format_bill(bills_monitor.get_all())
 
-        if resp == 200:
-            await message.channel.send("Bill data has been deleted. - RELAB")
-        elif resp == 404:
-            await message.channel.send("Error deleting bill data. - RELAB")
-
-    if msg.startswith(".allbills"):
-        await message.delete()
-
-        resp = bills_monitor.format_bill(bills_monitor.get_all())
-
-        for msg_res in resp:
-            await message.channel.send(msg_res)
+            for msg_res in resp:
+                await message.channel.send(msg_res)
 
 
 client.run(os.getenv("TOKEN"))

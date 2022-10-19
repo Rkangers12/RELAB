@@ -1,4 +1,3 @@
-import py_compile
 import discord
 import asyncio
 
@@ -36,32 +35,24 @@ class PayslipReport:
         payday = self._ht.format_a_day(int(self._ic.get("payDay")), weekday=True)
         paydate_ts = self.get_paydate_timestamp(payday)
 
-        print(
-            self._ht.convert_timestamp(paydate_ts),
-            self._ht.convert_timestamp(paydate_ts - 86400 * 7),
-        )
-
         now = self._ht.current_timestamp()
 
         if paydate_ts - 86400 * 8 < now < paydate_ts - 86400 * 6:
-            print("REMINDER: You are due to be paid in 7 days, **{}**.".format(payday))
             await channel.send(
                 "REMINDER: You are due to be paid in 7 days, **{}**.".format(payday)
             )
 
         if paydate_ts - 86400 * 4 < now < paydate_ts - 86400 * 2:
-            print("REMINDER: You are due to be paid in 3 days, **{}**.".format(payday))
             await channel.send(
                 "REMINDER: You are due to be paid in 3 days, **{}**.".format(payday)
             )
 
         if paydate_ts - 86400 * 2 < now < paydate_ts:
-            print("REMINDER: You are due to be paid in 1 day, **{}**.".format(payday))
             await channel.send(
                 "REMINDER: You are due to be paid in 1 day, **{}**.".format(payday)
             )
 
-        if True:
+        if paydate_ts < now < paydate_ts + 86400:
             await channel.send(
                 "RELAB has determined today as your pay date. See below for payslip:."
             )
@@ -87,7 +78,7 @@ class PayslipReport:
             # functionality to wait till activation time
             activate_time = datetime.combine(
                 now.date(), self._task_time
-            )  # 00:01:00 AM today
+            )  # 08:00:00 AM today
             seconds_until_activate = (activate_time - now).total_seconds()
             # Sleep until RELAB hits the activation time
             await asyncio.sleep(seconds_until_activate)

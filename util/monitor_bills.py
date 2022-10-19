@@ -18,7 +18,7 @@ class BillsMonitor:
 
         return self._datastore.get_value("billsData", {})
 
-    def get_bills_value(self, bill, bill_metadata=None):
+    def get_bill_val(self, bill, bill_metadata=None):
         """get the value of the requested bill data"""
 
         if bill_metadata is None:
@@ -59,7 +59,7 @@ class BillsMonitor:
     def process_bill(self, data):
         """method to isolate storing of bill data to one location"""
 
-        bill_store = self.get_bills_value(data["bill"])
+        bill_store = self.get_bill_val(data["bill"])
 
         self.store_bill_metadata(
             data["bill"],
@@ -75,7 +75,6 @@ class BillsMonitor:
 
     def format_bill(self, data):
         """format the bill data into a message for users"""
-        print(data)
 
         dday = data.get("debit_day", False)
         md_day = True if data.get("debit_day") is not None else False
@@ -108,7 +107,7 @@ class BillsMonitor:
 
         bill_dict.pop("metadata", 0)
 
-        return bill_dict | self.get_bills_value(bill_dict.get("bill"))
+        return bill_dict | self.get_bill_val(bill_dict.get("bill"))
 
     def get_bill_meta(self, content):
         """get the individual metadata for a bill from database"""
@@ -119,7 +118,7 @@ class BillsMonitor:
             return 404
 
         try:
-            bill_dict[bill_dict.pop("metadata")] = self.get_bills_value(
+            bill_dict[bill_dict.pop("metadata")] = self.get_bill_val(
                 bill_dict.get("bill"), bill_metadata=bill_dict.get("metadata", None)
             )
         except KeyError:
