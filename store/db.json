@@ -123,6 +123,12 @@
                 "start": 1666195467,
                 "finish": 1666195470
             }
+        ],
+        "201022": [
+            {
+                "start": 1666279034,
+                "finish": 1666279071
+            }
         ]
     },
     "gymming": false,
@@ -157,5 +163,8 @@
             "debit_day": 19,
             "expense": 23.0
         }
+    },
+    "settings": {
+        "power": true
     }
 }

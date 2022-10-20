@@ -5,29 +5,28 @@ from json import load, dump
 
 
 class Handler:
-
     def __init__(self, db_location=None):
 
-        self._db = db_location or 'store/db.json'
+        self._db = db_location or "store/db.json"
 
     def get(self):
-        '''returns entire database'''
+        """returns entire database"""
 
         with open(self._db) as db:
             return load(db)
-    
+
     def get_keys(self):
-        '''returns all non-nested keys within database'''
+        """returns all non-nested keys within database"""
 
         return self.get().keys()
-    
+
     def get_value(self, key, default=None):
-        ''' returns the value of a provided key within database'''
+        """returns the value of a provided key within database"""
 
         return self.get().get(key, default)
 
     def get_nested_value(self, keys=[], default=None):
-        '''traverse the database for the desired nested value'''
+        """traverse the database for the desired nested value"""
 
         if len(keys) == 0:
             return
@@ -39,36 +38,50 @@ class Handler:
             for key in keys[1:]:
                 if traversed == default:
                     return traversed
-                
+
                 traversed = traversed.get(key, default)
-        
+
         return traversed
 
     def write_all(self, new_db):
-        '''re-writes over existing database with new database'''
+        """re-writes over existing database with new database"""
 
-        with open(self._db, 'w') as db:
-            return dump(new_db, db, indent=4)        
-    
+        with open(self._db, "w") as db:
+            return dump(new_db, db, indent=4)
+
     def overwrite(self, db_key, db_value):
-        '''re-writes the record within database for key with new value'''
+        """re-writes the record within database for key with new value"""
 
         db = self.get()
 
         db[db_key] = db_value
 
         return self.write_all(new_db=db)
-    
+
+    def overwrite_nested(self, keys_list, last_key, db_value):
+        """re-write the record within the database for the key with new value at nested level"""
+
+        db = self.get()
+
+        db_nested = db[keys_list[0]]
+        if len(keys_list) > 1:
+            for db_key in keys_list[1:]:
+                db_nested = db_nested[db_key]
+
+        db_nested[last_key] = db_value
+
+        return self.write_all(new_db=db)
+
     def snapshot(self):
-        '''take snapshot of existing database'''
+        """take snapshot of existing database"""
 
         try:
-            os.mkdir('snapshots')
+            os.mkdir("snapshots")
         except OSError:
             pass
 
         timestamp = datetime.now().strftime("%d%m%y")
-        snapshot = 'snapshots/db_snapshot_{}'.format(timestamp)
-        
-        with open(snapshot, 'w') as snapshot_db:
+        snapshot = "snapshots/db_snapshot_{}".format(timestamp)
+
+        with open(snapshot, "w") as snapshot_db:
             return dump(self.get(), snapshot_db, indent=4)
