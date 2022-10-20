@@ -293,10 +293,9 @@ async def on_message(message):
         if msg.startswith(".allbills"):
             await message.delete()
 
-            resp = bills_monitor.format_bill(bills_monitor.get_all())
-
+            resp = bills_monitor.get_all()
             for msg_res in resp:
-                await message.channel.send(msg_res)
+                await message.channel.send(bills_monitor.format_bill(msg_res))
 
 
 client.run(os.getenv("TOKEN"))

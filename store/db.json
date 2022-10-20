@@ -151,7 +151,7 @@
         },
         "electricity": {
             "debit_day": 17,
-            "expense": 0.0
+            "expense": 59.0
         },
         "gas": {
             "debit_day": 19,
