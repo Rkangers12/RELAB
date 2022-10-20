@@ -130,14 +130,14 @@ class BillsMonitor:
         """get all bills within bills from database"""
 
         bills = self.get_bills
-        messages = []
+        bills_list = []
 
         for bill in bills:
             bill_info = bills.get(bill, {})
             bill_info["bill"] = bill
-            messages.append(self.format_bill(bill_info))
+            bills_list.append(bill_info)
 
-        return messages
+        return bills_list
 
     def delete(self, content):
         """delete a bill stored within the database"""
