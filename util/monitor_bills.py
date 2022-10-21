@@ -31,7 +31,6 @@ class BillsMonitor:
 
         db = self._datastore.get()  # initialise new database for overwrite
         bills_db = db.get("billsData", {})  # get the overall bills data stored
-        bill_data = bills_db.get(bill, {})  # get the specific bill for metadata write
 
         try:
             bill_data = bills_db[bill]
@@ -46,13 +45,16 @@ class BillsMonitor:
     def sort_message_content(self, content):
         """sort the content message to retrieve the relevant information"""
 
-        content_listed = content.lower().split(".")[2:]
-        content_dict = {}
+        try:
+            content_listed = content.lower().split(".")[2:]
+            content_dict = {}
 
-        for obj_string in content_listed:
+            for obj_string in content_listed:
 
-            obj_string = obj_string.split("=")
-            content_dict[obj_string[0]] = obj_string[1]
+                obj_string = obj_string.split("=")
+                content_dict[obj_string[0]] = obj_string[1]
+        except IndexError:
+            pass
 
         return content_dict
 
@@ -90,41 +92,41 @@ class BillsMonitor:
     def set(self, content):
         """set the data for the bill"""
 
-        try:
-            bill_dict = self.sort_message_content(content)
-        except IndexError:
+        bdict = self.sort_message_content(content)
+
+        if "bill" not in bdict.keys() or ("day" not in bdict or "cost" not in bdict):
             return 404
 
-        self.process_bill(bill_dict)
+        self.process_bill(bdict)
         return 200
 
     def get_bill(self, content):
         """get the individual data within bills from database"""
 
-        bill_dict = self.sort_message_content(content)
-        if bill_dict.get("bill") not in self.get_bills.keys():
+        bdict = self.sort_message_content(content)
+
+        if bdict.get("bill") not in self.get_bills.keys() or "bill" not in bdict.keys():
             return 404
 
-        bill_dict.pop("metadata", 0)
-
-        return bill_dict | self.get_bill_val(bill_dict.get("bill"))
+        bdict = {"bill": bdict.pop("bill")}
+        return bdict | self.get_bill_val(bdict.get("bill"))
 
     def get_bill_meta(self, content):
         """get the individual metadata for a bill from database"""
 
-        bill_dict = self.sort_message_content(content)
+        bdict = self.sort_message_content(content)
 
-        if bill_dict.get("bill") not in self.get_bills.keys():
+        if bdict.get("bill") not in self.get_bills.keys() or "bill" not in bdict.keys():
             return 404
 
-        try:
-            bill_dict[bill_dict.pop("metadata")] = self.get_bill_val(
-                bill_dict.get("bill"), bill_metadata=bill_dict.get("metadata", None)
-            )
-        except KeyError:
+        if bdict.get("metadata") not in ["debit_day", "expense"]:
             return 404
 
-        return bill_dict
+        bdict[bdict.pop("metadata")] = self.get_bill_val(
+            bdict.get("bill"), bill_metadata=bdict.get("metadata")
+        )
+
+        return bdict
 
     def get_all(self):
         """get all bills within bills from database"""
@@ -142,13 +144,11 @@ class BillsMonitor:
     def delete(self, content):
         """delete a bill stored within the database"""
 
-        try:
-            bill_dict = self.sort_message_content(content)
-        except IndexError:
-            return 404
+        bill_dict = self.sort_message_content(content)
 
         db = self._datastore.get()
         bills_db = db.get("billsData", {})
+
         try:
             bills_db.pop(bill_dict.get("bill"))
         except KeyError:
