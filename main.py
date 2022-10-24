@@ -138,7 +138,6 @@ async def on_message(message):
 
     bot_powered = datastore.get_nested_value(["settings", "power"])
     if bot_powered:
-
         if message.channel.id == int(os.getenv("SNAPSHOTS_CHANNEL")):
             if msg.startswith(".snapshot"):
                 await snapshot(message)

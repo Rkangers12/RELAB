@@ -18,28 +18,24 @@ class BillsMonitor:
 
         return self._datastore.get_value("billsData", {})
 
-    def get_bill_val(self, bill, bill_metadata=None):
-        """get the value of the requested bill data"""
-
-        if bill_metadata is None:
-            return self.get_bills.get(bill, {})
-
-        return self.get_bills.get(bill, {}).get(bill_metadata, {})
-
-    def store_bill_metadata(self, bill, bill_metadata, bills_value):
+    def store_bill_metadata(self, data):
         """store the value relating to the metadata of the bill"""
 
-        db = self._datastore.get()  # initialise new database for overwrite
-        bills_db = db.get("billsData", {})  # get the overall bills data stored
+        bill_store = self._datastore.get_nested_value(
+            ["billsData", data["bill"]], default={}
+        )
 
-        try:
-            bill_data = bills_db[bill]
-        except KeyError:
-            bills_db[bill] = {}
-            bill_data = bills_db[bill]
+        self._datastore.overwrite_nested(
+            keys_list=["billsData", data["bill"]],
+            last_key="debit_day",
+            db_value=min(31, int(data.get("day") or bill_store.get("debit_day", 1))),
+        )
 
-        bill_data[bill_metadata] = bills_value
-        self._datastore.write_all(db)
+        self._datastore.overwrite_nested(
+            keys_list=["billsData", data["bill"]],
+            last_key="expense",
+            db_value=int(data.get("cost") or bill_store.get("expense", 1)),
+        )
 
     # class helper methods
     def sort_message_content(self, content):
@@ -57,23 +53,6 @@ class BillsMonitor:
             pass
 
         return content_dict
-
-    def process_bill(self, data):
-        """method to isolate storing of bill data to one location"""
-
-        bill_store = self.get_bill_val(data["bill"])
-
-        self.store_bill_metadata(
-            data["bill"],
-            "debit_day",
-            min(31, int(data.get("day") or bill_store.get("debit_day", 1))),
-        )
-
-        self.store_bill_metadata(
-            data["bill"],
-            "expense",
-            float(data.get("cost") or bill_store.get("expense", 0)),
-        )
 
     def format_bill(self, data):
         """format the bill data into a message for users"""
@@ -94,10 +73,10 @@ class BillsMonitor:
 
         bdict = self.sort_message_content(content)
 
-        if "bill" not in bdict.keys() or ("day" not in bdict or "cost" not in bdict):
+        if "bill" not in bdict or ("day" not in bdict and "cost" not in bdict):
             return 404
 
-        self.process_bill(bdict)
+        self.store_bill_metadata(bdict)
         return 200
 
     def get_bill(self, content):
@@ -109,7 +88,7 @@ class BillsMonitor:
             return 404
 
         bdict = {"bill": bdict.pop("bill")}
-        return bdict | self.get_bill_val(bdict.get("bill"))
+        return bdict | self._datastore.get_nested_value(["billsData", bdict["bill"]])
 
     def get_bill_meta(self, content):
         """get the individual metadata for a bill from database"""
@@ -122,8 +101,8 @@ class BillsMonitor:
         if bdict.get("metadata") not in ["debit_day", "expense"]:
             return 404
 
-        bdict[bdict.pop("metadata")] = self.get_bill_val(
-            bdict.get("bill"), bill_metadata=bdict.get("metadata")
+        bdict[bdict.pop("metadata")] = self._datastore.get_nested_value(
+            ["billsData", bdict["bill"], bdict["metadata"]]
         )
 
         return bdict

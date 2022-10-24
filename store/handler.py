@@ -66,7 +66,11 @@ class Handler:
         db_nested = db[keys_list[0]]
         if len(keys_list) > 1:
             for db_key in keys_list[1:]:
-                db_nested = db_nested[db_key]
+                try:
+                    db_nested = db_nested[db_key]
+                except KeyError:
+                    db_nested[db_key] = {}
+                    db_nested = db_nested[db_key]
 
         db_nested[last_key] = db_value
 
