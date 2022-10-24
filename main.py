@@ -11,7 +11,7 @@ from jobs.bills_report import BillsReport
 from jobs.payslip_report import PayslipReport
 from jobs.summary_report import SummaryReport
 from util.handle_times import HandleTimes
-from util.monitor_bills import BillsMonitor
+from util.monitor import Monitor
 from util.session_tracker import SessionTrack
 
 
@@ -28,7 +28,7 @@ sesscomms = SessionCommands(
     datastore=datastore, studytrack=studytrack, gymtrack=gymtrack
 )
 inc_coms = IncomeCommands(datastore=datastore)
-bills_monitor = BillsMonitor(datastore=datastore)
+bills_monitor = Monitor("bill", "billsData", datastore=datastore)
 
 
 @client.event
@@ -307,7 +307,7 @@ async def on_message(message):
             if msg.startswith(".getbill"):
                 await message.delete()
 
-                resp = bills_monitor.get_bill(msg)
+                resp = bills_monitor.get(msg)
 
                 if resp == 404:
                     await message.channel.send(
@@ -320,7 +320,7 @@ async def on_message(message):
             if msg.startswith(".getmetabill"):
                 await message.delete()
 
-                resp = bills_monitor.get_bill_meta(msg)
+                resp = bills_monitor.get_meta(msg)
 
                 if resp == 404:
                     await message.channel.send(
