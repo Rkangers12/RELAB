@@ -346,5 +346,25 @@ async def on_message(message):
                 for msg_res in resp:
                     await message.channel.send(bills_monitor.format_bill(msg_res))
 
+            if msg.startswith(".registersubscription") or msg.startswith(
+                ".updatesubscription"
+            ):
+                pass
+
+            if msg.startswith(".deletesubscription"):
+                pass
+
+            if msg.startswith(".getsubscription"):
+                pass
+
+            if msg.startswith(".subscriptions"):
+                pass
+
+            if msg.startswith(".getmetasubscription"):
+                pass
+
+            if msg.startswith(".togglesubscription"):
+                pass
+
 
 client.run(os.getenv("TOKEN"))
