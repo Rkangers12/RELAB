@@ -20,39 +20,28 @@ class Monitor:
 
         return self._datastore.get_value(self._key, {})
 
-    def store_data(self, data):
+    def store_data(self, mdict, data, meta_key):
         """store the value relating to the metadata of the monitor"""
 
-        db_store = self._datastore.get_nested_value(
-            [self._key, data[self._monitor]], default={}
-        )
-
         self._datastore.overwrite_nested(
-            keys_list=[self._key, data[self._monitor]],
-            last_key="debit_day",
-            db_value=min(31, int(data.get("day") or db_store.get("debit_day", 1))),
-        )
-
-        self._datastore.overwrite_nested(
-            keys_list=[self._key, data[self._monitor]],
-            last_key="expense",
-            db_value=int(data.get("cost") or db_store.get("expense", 1)),
+            keys_list=[self._key, data],
+            last_key=meta_key,
+            db_value=mdict.get(meta_key),
         )
 
     # class helper methods
     def sort_message_content(self, content):
         """sort the content message to retrieve the relevant information"""
 
-        try:
-            content_listed = content.lower().split(".")[2:]
-            content_dict = {}
+        content_listed = content.lower().split(":")[1:]
+        content_dict = {}
 
-            for obj_string in content_listed:
-
+        for obj_string in content_listed:
+            try:
                 obj_string = obj_string.split("=")
                 content_dict[obj_string[0]] = obj_string[1]
-        except IndexError:
-            pass
+            except IndexError:
+                pass
 
         return content_dict
 
@@ -70,29 +59,60 @@ class Monitor:
         return obj + (obj_day if md_day else "") + (obj_exp if md_exp else "") + "."
 
     # class functional methods
-    def set(self, content):
+    def set(self, content, pdict=None):
         """set the data for the specified monitor"""
 
-        mdict = self.sort_message_content(content)
+        mdict = pdict or self.sort_message_content(content)
 
-        if self._monitor not in mdict or ("day" not in mdict and "cost" not in mdict):
+        if self._monitor not in mdict.keys():
             return 404
 
-        self.store_data(mdict)
+        if (mdict.get("debit_day") and mdict.get("expense")) is not None:
+            mdict["debit_day"] = min(31, int(mdict["debit_day"]))
+            mdict["expense"] = float(mdict["expense"])
+
+            monitor_val = mdict.pop(self._monitor)
+
+            for meta_key in mdict:
+                self.store_data(mdict, monitor_val, meta_key)
+
+            return 200
+
+        return 404
+
+    def update(self, content, pdict=None):
+        """update the data for the specific monitor"""
+
+        mdict = pdict or self.sort_message_content(content)
+        monitor = self.get_data
+
+        if self._monitor not in mdict.keys() or mdict.get(self._monitor) not in monitor:
+            return 404
+
+        if mdict.get("debit_day") is not None:
+            mdict["debit_day"] = min(31, int(mdict["debit_day"]))
+
+        if mdict.get("expense") is not None:
+            mdict["expense"] = float(mdict["expense"])
+
+        monitor_val = mdict.pop(self._monitor)
+
+        for meta_key in mdict:
+            self.store_data(mdict, monitor_val, meta_key)
+
         return 200
 
     def get(self, content):
         """get the individual data within provided monitor from database"""
 
         mdict = self.sort_message_content(content)
+        monitor = self.get_data
 
-        if (
-            mdict.get(self._monitor) not in self.get_data.keys()
-            or self._monitor not in mdict.keys()
-        ):
+        if mdict.get(self._monitor) not in monitor or self._monitor not in mdict.keys():
             return 404
 
         mdict = {self._monitor: mdict.pop(self._monitor)}
+
         return mdict | self._datastore.get_nested_value(
             [self._key, mdict[self._monitor]]
         )
@@ -101,11 +121,9 @@ class Monitor:
         """get the individual metadata for provided monitor from database"""
 
         mdict = self.sort_message_content(content)
+        monitor = self.get_data
 
-        if (
-            mdict.get(self._monitor) not in self.get_data.keys()
-            or self._monitor not in mdict.keys()
-        ):
+        if mdict.get(self._monitor) not in monitor or self._monitor not in mdict.keys():
             return 404
 
         if mdict.get("metadata") not in ["debit_day", "expense"]:
@@ -146,3 +164,17 @@ class Monitor:
         self._datastore.write_all(db)
 
         return 200
+
+    def delete_meta(self, content, pdict=None):
+        """delete the meta key for monitor stored within the database"""
+
+        mdict = pdict or self.sort_message_content(content)
+        monitor = self.get_data
+
+        if mdict.get(self._monitor) not in monitor or self._monitor not in mdict.keys():
+            return 404
+
+        if mdict.get("metadata") in ["debit_day", "expense"]:
+            return 404
+
+        return mdict.pop("metadata", None)

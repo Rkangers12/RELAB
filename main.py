@@ -304,6 +304,15 @@ async def on_message(message):
                 elif resp == 404:
                     await message.channel.send("Error registering bill data. - RELAB")
 
+            if msg.startswith(".updatebill"):
+                await message.delete()
+                resp = bills_monitor.update(msg)
+
+                if resp == 200:
+                    await message.channel.send("Bill data has been updated. - RELAB")
+                elif resp == 404:
+                    await message.channel.send("Error updating bill data. - RELAB")
+
             if msg.startswith(".getbill"):
                 await message.delete()
 
@@ -346,9 +355,10 @@ async def on_message(message):
                 for msg_res in resp:
                     await message.channel.send(bills_monitor.format_bill(msg_res))
 
-            if msg.startswith(".registersubscription") or msg.startswith(
-                ".updatesubscription"
-            ):
+            if msg.startswith(".registersubscription"):
+                pass
+
+            if msg.startswith(".updatesubscription"):
                 pass
 
             if msg.startswith(".deletesubscription"):

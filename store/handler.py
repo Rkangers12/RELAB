@@ -76,6 +76,25 @@ class Handler:
 
         return self.write_all(new_db=db)
 
+    def delete_nested(self, keys_list, last_key):
+        """delete the record within the database for the provided key at nested level"""
+
+        db = self.get()
+
+        db_nested = db[keys_list[0]]
+        if len(keys_list) > 1:
+            for db_key in keys_list[1:]:
+                try:
+                    db_nested = db_nested[db_key]
+                except KeyError:
+                    db_nested[db_key] = {}
+                    db_nested = db_nested[db_key]
+
+        popped = db_nested.pop(last_key, None)
+        self.write_all(new_db=db)
+
+        return popped
+
     def snapshot(self):
         """take snapshot of existing database"""
 
