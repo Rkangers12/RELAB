@@ -5,15 +5,20 @@ from discord.ext import tasks
 
 from store.handler import Handler
 from util.handle_times import HandleTimes
-from util.monitor import Monitor
+from util.monitor_subscriptions import SubscriptionsMonitor
 
 
-class BillsReport:
+class SubscriptionsReport:
+
+    _KEY = "subscriptionsData"
+
     def __init__(self, channel_id, intents=None, client=None):
 
         self._datastore = Handler()
         self._ht = HandleTimes()
-        self._bm = Monitor("bill", "billsData", datastore=self._datastore)
+        self._sm = SubscriptionsMonitor(
+            "subscription", self._KEY, datastore=self._datastore
+        )
 
         self._channel_id = channel_id
         self._intents = intents or discord.Intents.all()
@@ -26,50 +31,54 @@ class BillsReport:
 
         channel = self._client.get_channel(self._channel_id)
 
-        bills = self._bm.get_data
-        for bill in bills:
+        subscriptions = self._sm.get_data
+        for sub in subscriptions:
 
-            bd = self._ht.format_a_day(
-                self._datastore.get_nested_value(["billsData", bill, "debit_day"])
+            if not self._sm.subscription_active(sub):
+                continue
+
+            print(self._sm.subscription_active(sub), sub)
+            sd = self._ht.format_a_day(
+                self._datastore.get_nested_value([self._KEY, sub, "debit_day"])
             )
-            be = self._datastore.get_nested_value(["billsData", bill, "expense"])
+            se = self._datastore.get_nested_value([self._KEY, sub, "expense"])
 
-            bill_day_ts = self._ht.date_to_ts(bd)
+            sub_day_ts = self._ht.date_to_ts(sd)
             now = self._ht.current_timestamp()
 
-            if bill_day_ts - 86400 * 3 < now < bill_day_ts - 86400 * 2.7:
+            if sub_day_ts - 86400 * 3 < now < sub_day_ts - 86400 * 2.7:
                 await channel.send(
-                    "REMINDER: Your **£{}** **{}** bill is due in 3 days, **{}**.".format(
-                        be, bill.title(), bd
+                    "REMINDER: Your **£{}** **{}** subscription is due in 3 days, **{}**.".format(
+                        se, sub.title(), sd
                     )
                 )
 
-            if bill_day_ts - 86400 * 1 < now < bill_day_ts - 86400 * 0.7:
+            if sub_day_ts - 86400 * 1 < now < sub_day_ts - 86400 * 0.7:
                 await channel.send(
-                    "REMINDER: Your **£{}** **{}** bill is due in 1 day, **{}**.".format(
-                        be, bill.title(), bd
+                    "REMINDER: Your **£{}** **{}** subscription is due in 1 day, **{}**.".format(
+                        se, sub.title(), sd
                     )
                 )
 
-            if bill_day_ts < now < bill_day_ts + 86400:
+            if sub_day_ts < now < sub_day_ts + 86400:
                 await channel.send(
-                    "£**{}** for **{}** bill payment made today. - RELAB".format(
-                        be, bill.title()
+                    "£**{}** for **{}** subscription payment made today. - RELAB".format(
+                        se, sub.title()
                     )
                 )
 
     @tasks.loop(seconds=600)  # TESTING ADJUSTABLE
-    async def bill_reporter(self):
+    async def subscription_reporter(self):
 
         now = datetime.now()
-        print("[%s] INTERNAL MESSAGE: Bill Reporter is at work." % now.time())
+        print("[%s] INTERNAL MESSAGE: Subscription Reporter is at work." % now.time())
 
         if now.time() > self._task_time:
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
             #  Seconds until tomorrow (midnight)
             seconds_until_midnight = (midnight - now).total_seconds()
             # Sleep until midnight and then loop shall begin
-            await asyncio.sleep(seconds_until_midnight)  # TESTING ADJUSTABLE
+            await asyncio.sleep(1)  # TESTING ADJUSTABLE
 
         # Loop begins
         while True:
@@ -81,11 +90,11 @@ class BillsReport:
             )  # 07:00:00 AM today
             seconds_until_activate = (activate_time - now).total_seconds()
             # Sleep until RELAB hits the activation time
-            await asyncio.sleep(seconds_until_activate)  # TESTING ADJUSTABLE
+            await asyncio.sleep(1)  # TESTING ADJUSTABLE
 
             await self.background_reporter()  # Call the helper function that sends the message
 
             # functionality to wait till midnight
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
             seconds_until_midnight = (midnight - now).total_seconds()
-            await asyncio.sleep(seconds_until_midnight)
+            await asyncio.sleep(30)

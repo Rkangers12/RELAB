@@ -37,17 +37,17 @@ class PayslipReport:
 
         now = self._ht.current_timestamp()
 
-        if paydate_ts - 86400 * 8 < now < paydate_ts - 86400 * 6:
+        if paydate_ts - 86400 * 7 < now < paydate_ts - 86400 * 6.7:
             await channel.send(
                 "REMINDER: You are due to be paid in 7 days, **{}**.".format(payday)
             )
 
-        if paydate_ts - 86400 * 4 < now < paydate_ts - 86400 * 2:
+        if paydate_ts - 86400 * 3 < now < paydate_ts - 86400 * 2.7:
             await channel.send(
                 "REMINDER: You are due to be paid in 3 days, **{}**.".format(payday)
             )
 
-        if paydate_ts - 86400 * 2 < now < paydate_ts:
+        if paydate_ts - 86400 * 1 < now < paydate_ts - 86400 * 0.7:
             await channel.send(
                 "REMINDER: You are due to be paid in 1 day, **{}**.".format(payday)
             )

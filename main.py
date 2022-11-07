@@ -1,17 +1,21 @@
-from math import fabs
 import discord
 import os
 from uuid import uuid4
 from dotenv import load_dotenv
 
 from store.handler import Handler
+
 from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
+
 from jobs.bills_report import BillsReport
 from jobs.payslip_report import PayslipReport
+from jobs.subscriptions_report import SubscriptionsReport
 from jobs.summary_report import SummaryReport
+
 from util.handle_times import HandleTimes
-from util.monitor_bills import BillsMonitor
+from util.monitor import Monitor
+from util.monitor_subscriptions import SubscriptionsMonitor
 from util.session_tracker import SessionTrack
 
 
@@ -28,7 +32,10 @@ sesscomms = SessionCommands(
     datastore=datastore, studytrack=studytrack, gymtrack=gymtrack
 )
 inc_coms = IncomeCommands(datastore=datastore)
-bills_monitor = BillsMonitor(datastore=datastore)
+bills_monitor = Monitor("bill", "billsData", datastore=datastore)
+subs_monitor = SubscriptionsMonitor(
+    "subscription", "subscriptionsData", datastore=datastore
+)
 
 
 @client.event
@@ -67,7 +74,19 @@ async def on_ready():
 
     if not billTask.bill_reporter.is_running():
         billTask.bill_reporter.start()  # if the task is not already running, start it.
-        print("Booted Background Process #3: Bill Reporter - {0.user}\n".format(client))
+        print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
+
+    subscriptionTask = SubscriptionsReport(
+        channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
+    )
+
+    if not subscriptionTask.subscription_reporter.is_running():
+        subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
+        print(
+            "Booted Background Process #4: Subscription Reporter - {0.user}\n".format(
+                client
+            )
+        )
 
 
 async def snapshot(message):
@@ -105,19 +124,19 @@ async def help(message):
 
 async def power(message):
     """command center for those relating to the bot settings"""
-
     await message.delete()
-    settings = datastore.get_value("settings", {})
-    if settings == {}:
-        datastore.overwrite(db_key="settings", db_value={})
 
-    power = settings.get("power", False)
+    setting = "settings"
+    if datastore.get_value(setting, {}) == {}:
+        datastore.overwrite(db_key=setting, db_value={})
+
+    power = datastore.get_nested_value([setting, "power"], default=False)
 
     if power:
-        datastore.overwrite_nested(["settings"], "power", False)
+        datastore.overwrite_nested([setting], "power", False)
         await message.channel.send("**RELAB has been switched off.**")
     else:
-        datastore.overwrite_nested(["settings"], "power", True)
+        datastore.overwrite_nested([setting], "power", True)
         await message.channel.send("**RELAB has been switched on.**")
 
 
@@ -138,7 +157,6 @@ async def on_message(message):
 
     bot_powered = datastore.get_nested_value(["settings", "power"])
     if bot_powered:
-
         if message.channel.id == int(os.getenv("SNAPSHOTS_CHANNEL")):
             if msg.startswith(".snapshot"):
                 await snapshot(message)
@@ -303,12 +321,43 @@ async def on_message(message):
                         "New bill data has been registered. - RELAB"
                     )
                 elif resp == 404:
-                    await message.channel.send("Error registering bill data. - RELAB")
+                    await message.channel.send("Error registering bill. - RELAB")
+
+            if msg.startswith(".registersubscription"):
+                await message.delete()
+                resp = subs_monitor.register(msg)
+
+                if resp == 200:
+                    await message.channel.send(
+                        "New subscription data has been registered. - RELAB"
+                    )
+                elif resp == 404:
+                    await message.channel.send(
+                        "Error registering subscription. - RELAB"
+                    )
+
+            if msg.startswith(".updatebill"):
+                await message.delete()
+                resp = bills_monitor.update(msg)
+
+                if resp == 200:
+                    await message.channel.send("Bill data has been updated. - RELAB")
+                elif resp == 404:
+                    await message.channel.send("Error updating bill data. - RELAB")
+
+            if msg.startswith(".updatesubscription"):
+                await message.delete()
+                resp = subs_monitor.extend_update(msg)
+
+                if resp == 200:
+                    await message.channel.send("Subscription has been updated. - RELAB")
+                elif resp == 404:
+                    await message.channel.send("Error updating subscription. - RELAB")
 
             if msg.startswith(".getbill"):
                 await message.delete()
 
-                resp = bills_monitor.get_bill(msg)
+                resp = bills_monitor.get(msg)
 
                 if resp == 404:
                     await message.channel.send(
@@ -316,12 +365,25 @@ async def on_message(message):
                     )
                     return
 
-                await message.channel.send(bills_monitor.format_bill(resp))
+                await message.channel.send(bills_monitor.format_message(resp))
+
+            if msg.startswith(".getsubscription"):
+                await message.delete()
+
+                resp = subs_monitor.get(msg)
+
+                if resp == 404:
+                    await message.channel.send(
+                        "Subscription information provided was invalid. - RELAB"
+                    )
+                    return
+
+                await message.channel.send(subs_monitor.format_message(resp))
 
             if msg.startswith(".getmetabill"):
                 await message.delete()
 
-                resp = bills_monitor.get_bill_meta(msg)
+                resp = bills_monitor.get_meta(msg)
 
                 if resp == 404:
                     await message.channel.send(
@@ -329,9 +391,36 @@ async def on_message(message):
                     )
                     return
 
-                await message.channel.send(bills_monitor.format_bill(resp))
+                await message.channel.send(bills_monitor.format_message(resp))
 
-            if msg.startswith(".deletebill"):
+            if msg.startswith(".getmetasubscription"):
+                await message.delete()
+
+                resp = subs_monitor.extend_get_meta(msg)
+
+                if resp == 404:
+                    await message.channel.send(
+                        "Subscription information provided was invalid. - RELAB"
+                    )
+                    return
+
+                await message.channel.send(subs_monitor.format_message(resp))
+
+            if msg.startswith(".bills"):
+                await message.delete()
+
+                resp = bills_monitor.get_all()
+                for msg_res in resp:
+                    await message.channel.send(bills_monitor.format_message(msg_res))
+
+            if msg.startswith(".subscriptions"):
+                await message.delete()
+
+                resp = subs_monitor.get_all()
+                for msg_res in resp:
+                    await message.channel.send(subs_monitor.format_message(msg_res))
+
+            if msg.startswith(".delbill"):
                 await message.delete()
                 resp = bills_monitor.delete(msg)
 
@@ -340,12 +429,59 @@ async def on_message(message):
                 elif resp == 404:
                     await message.channel.send("Error deleting bill data. - RELAB")
 
-            if msg.startswith(".allbills"):
+            if msg.startswith(".deletesubscription"):
                 await message.delete()
+                resp = subs_monitor.delete(msg)
 
-                resp = bills_monitor.get_all()
-                for msg_res in resp:
-                    await message.channel.send(bills_monitor.format_bill(msg_res))
+                if resp == 200:
+                    await message.channel.send("Subscription has been deleted. - RELAB")
+                elif resp == 404:
+                    await message.channel.send("Error deleting subscripton. - RELAB")
+
+            if msg.startswith(".delmetabill"):
+                await message.delete()
+                resp = bills_monitor.delete_meta(msg)
+
+                if resp == 200:
+                    await message.channel.send("Bill data has been deleted. - RELAB")
+                elif resp == 404:
+                    await message.channel.send("Error deleting bill data. - RELAB")
+
+            if msg.startswith(".delmetasub"):
+                await message.delete()
+                resp = subs_monitor.extend_delete_meta(msg)
+
+                if resp == 200:
+                    await message.channel.send(
+                        "Subscription metadata has been deleted. - RELAB"
+                    )
+                elif resp == 404:
+                    await message.channel.send(
+                        "Error deleting subscripton metadata. - RELAB"
+                    )
+
+            if msg.startswith(".togglesubscription"):
+                await message.delete()
+                resp = subs_monitor.pause(msg)
+
+                if resp.get("statusCode") == 404:
+                    await message.channel.send(
+                        "Error toggling subscription status - RELAB"
+                    )
+
+                if resp.get("statusCode") == 200:
+                    if resp.get("active"):
+                        await message.channel.send(
+                            "**{} has been switched on.**".format(
+                                resp.get("subscription")
+                            )
+                        )
+                    else:
+                        await message.channel.send(
+                            "**{} has been switched off.**".format(
+                                resp.get("subscription")
+                            )
+                        )
 
 
 client.run(os.getenv("TOKEN"))

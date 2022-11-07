@@ -54,7 +54,7 @@ class SummaryReport:
 
         channel = self._client.get_channel(self._channel_id)
 
-        if self._ht.check_end_week() or True:
+        if self._ht.check_end_week():
             await channel.send("\n".join(self.breakdown_generate("week")))
 
         if self._ht.check_end_month():
