@@ -4,11 +4,15 @@ from uuid import uuid4
 from dotenv import load_dotenv
 
 from store.handler import Handler
+
 from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
+
 from jobs.bills_report import BillsReport
 from jobs.payslip_report import PayslipReport
+from jobs.subscriptions_report import SubscriptionsReport
 from jobs.summary_report import SummaryReport
+
 from util.handle_times import HandleTimes
 from util.monitor import Monitor
 from util.monitor_subscriptions import SubscriptionsMonitor
@@ -70,7 +74,19 @@ async def on_ready():
 
     if not billTask.bill_reporter.is_running():
         billTask.bill_reporter.start()  # if the task is not already running, start it.
-        print("Booted Background Process #3: Bill Reporter - {0.user}\n".format(client))
+        print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
+
+    subscriptionTask = SubscriptionsReport(
+        channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
+    )
+
+    if not subscriptionTask.subscription_reporter.is_running():
+        subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
+        print(
+            "Booted Background Process #4: Subscription Reporter - {0.user}\n".format(
+                client
+            )
+        )
 
 
 async def snapshot(message):

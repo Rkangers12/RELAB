@@ -77,6 +77,11 @@ class SubscriptionsMonitor(Monitor):
 
         return self.get_meta(content, pdict=pdict)
 
+    def subscription_active(self, sub):
+        """check to see if the subscription is active"""
+
+        return self._datastore.get_nested_value([self._key, sub, "active"])
+
     def format_message(self, data):
         """format the retrieved data into a message for users"""
 
