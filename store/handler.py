@@ -1,13 +1,19 @@
 import os
-
 from datetime import datetime
 from json import load, dump
+from pathlib import Path
 
 
 class Handler:
+
+    FILENAME = "db.json"
+
     def __init__(self, db_location=None):
 
-        self._db = db_location or "store/db.json"
+        self._db = (db_location or "store/") + self.FILENAME
+
+        if not Path(self._db).exists():
+            self.write_all({})
 
     def get(self):
         """returns entire database"""
