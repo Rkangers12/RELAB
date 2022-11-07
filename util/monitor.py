@@ -68,8 +68,11 @@ class Monitor:
             return 404
 
         if (mdict.get("debit_day") and mdict.get("expense")) is not None:
-            mdict["debit_day"] = min(31, int(mdict["debit_day"]))
-            mdict["expense"] = float(mdict["expense"])
+            try:
+                mdict["debit_day"] = min(31, int(mdict["debit_day"]))
+                mdict["expense"] = float(mdict["expense"])
+            except ValueError:
+                return 404
 
             monitor_val = mdict.pop(self._monitor)
 
@@ -90,10 +93,16 @@ class Monitor:
             return 404
 
         if mdict.get("debit_day") is not None:
-            mdict["debit_day"] = min(31, int(mdict["debit_day"]))
+            try:
+                mdict["debit_day"] = min(31, int(mdict["debit_day"]))
+            except ValueError:
+                return 404
 
         if mdict.get("expense") is not None:
-            mdict["expense"] = float(mdict["expense"])
+            try:
+                mdict["expense"] = float(mdict["expense"])
+            except ValueError:
+                return 404
 
         monitor_val = mdict.pop(self._monitor)
 
@@ -117,10 +126,10 @@ class Monitor:
             [self._key, mdict[self._monitor]]
         )
 
-    def get_meta(self, content):
+    def get_meta(self, content, pdict=None):
         """get the individual metadata for provided monitor from database"""
 
-        mdict = self.sort_message_content(content)
+        mdict = pdict or self.sort_message_content(content)
         monitor = self.get_data
 
         if mdict.get(self._monitor) not in monitor or self._monitor not in mdict.keys():
@@ -142,7 +151,7 @@ class Monitor:
         records = []
 
         for record in monitor_records:
-            record_info = monitor_records.get(self._monitor, {})
+            record_info = monitor_records.get(record, {})
             record_info[self._monitor] = record
             records.append(record_info)
 
@@ -153,28 +162,22 @@ class Monitor:
 
         mdict = self.sort_message_content(content)
 
-        db = self._datastore.get()
-        monitor_db = db.get(self._key, {})
+        res = self._datastore.delete_nested(
+            keys_list=[self._key], last_key=mdict.get(self._monitor)
+        )
 
-        try:
-            monitor_db.pop(mdict.get(self._monitor))
-        except KeyError:
-            return 404
-
-        self._datastore.write_all(db)
-
-        return 200
+        return 200 if res is not None else 404
 
     def delete_meta(self, content, pdict=None):
         """delete the meta key for monitor stored within the database"""
 
         mdict = pdict or self.sort_message_content(content)
-        monitor = self.get_data
+        res = None
 
-        if mdict.get(self._monitor) not in monitor or self._monitor not in mdict.keys():
-            return 404
+        if mdict.get("metadata") not in ["debit_day", "expense"]:
+            res = self._datastore.delete_nested(
+                keys_list=[self._key, mdict.get(self._monitor)],
+                last_key=mdict.get("metadata"),
+            )
 
-        if mdict.get("metadata") in ["debit_day", "expense"]:
-            return 404
-
-        return mdict.pop("metadata", None)
+        return 200 if res is not None else 404

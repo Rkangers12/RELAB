@@ -5,15 +5,15 @@ from discord.ext import tasks
 
 from store.handler import Handler
 from util.handle_times import HandleTimes
-from util.monitor_bills import BillsMonitor
+from util.monitor import Monitor
 
 
 class BillsReport:
-    def __init__(self, channel_id=None, intents=None, client=None):
+    def __init__(self, channel_id, intents=None, client=None):
 
         self._datastore = Handler()
         self._ht = HandleTimes()
-        self._bm = BillsMonitor(datastore=self._datastore)
+        self._bm = Monitor("bill", "billsData", datastore=self._datastore)
 
         self._channel_id = channel_id
         self._intents = intents or discord.Intents.all()
@@ -26,23 +26,25 @@ class BillsReport:
 
         channel = self._client.get_channel(self._channel_id)
 
-        bills = self._bm.get_bills
+        bills = self._bm.get_data
         for bill in bills:
 
-            bd = self._ht.format_a_day(self._bm.get_bill_val(bill, "debit_day"))
-            be = self._bm.get_bill_val(bill, "expense")
+            bd = self._ht.format_a_day(
+                self._datastore.get_nested_value(["billsData", bill, "debit_day"])
+            )
+            be = self._datastore.get_nested_value(["billsData", bill, "expense"])
 
             bill_day_ts = self._ht.date_to_ts(bd)
             now = self._ht.current_timestamp()
 
-            if bill_day_ts - 86400 * 4 < now < bill_day_ts - 86400 * 2:
+            if bill_day_ts - 86400 * 3 < now < bill_day_ts - 86400 * 2.7:
                 await channel.send(
                     "REMINDER: Your **£{}** **{}** bill is due in 3 days, **{}**.".format(
                         be, bill.title(), bd
                     )
                 )
 
-            if bill_day_ts - 86400 * 2 < now < bill_day_ts:
+            if bill_day_ts - 86400 * 1 < now < bill_day_ts - 86400 * 0.7:
                 await channel.send(
                     "REMINDER: Your **£{}** **{}** bill is due in 1 day, **{}**.".format(
                         be, bill.title(), bd
