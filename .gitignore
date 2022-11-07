@@ -1,3 +1,4 @@
+nohup*
 .env
 *.pyc
 snapshots/*
