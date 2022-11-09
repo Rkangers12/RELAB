@@ -151,7 +151,7 @@ async def on_message(message):
         else:
             return
 
-    if msg.startswith(".purge"):
+    if msg.startswith(".purge") and message.author.id == os.getenv("KING_ID"):
         try:
             await message.channel.purge(limit=100)
         except discord.errors.NotFound:
