@@ -24,7 +24,7 @@ class SubscriptionsReport:
         self._intents = intents or discord.Intents.all()
         self._client = client or discord.Client(intents=self._intents)
 
-        self._task_time = time(hour=7, minute=00, second=00)
+        self._task_time = time(hour=7, minute=15, second=00)
 
     async def background_reporter(self):
         """checks if a new payday is coming up and to send out alerts for reminders"""
@@ -78,7 +78,7 @@ class SubscriptionsReport:
             #  Seconds until tomorrow (midnight)
             seconds_until_midnight = (midnight - now).total_seconds()
             # Sleep until midnight and then loop shall begin
-            await asyncio.sleep(1)  # TESTING ADJUSTABLE
+            await asyncio.sleep(seconds_until_midnight)  # TESTING ADJUSTABLE
 
         # Loop begins
         while True:
@@ -90,11 +90,11 @@ class SubscriptionsReport:
             )  # 07:00:00 AM today
             seconds_until_activate = (activate_time - now).total_seconds()
             # Sleep until RELAB hits the activation time
-            await asyncio.sleep(1)  # TESTING ADJUSTABLE
+            await asyncio.sleep(seconds_until_activate)  # TESTING ADJUSTABLE
 
             await self.background_reporter()  # Call the helper function that sends the message
 
             # functionality to wait till midnight
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
             seconds_until_midnight = (midnight - now).total_seconds()
-            await asyncio.sleep(30)
+            await asyncio.sleep(seconds_until_midnight)

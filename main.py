@@ -151,6 +151,13 @@ async def on_message(message):
         else:
             return
 
+    if msg.startswith(".purge") and message.author.id == int(os.getenv("KING_ID")):
+        try:
+            print("Purging")
+            await message.channel.purge(limit=100)
+        except discord.errors.NotFound:
+            print("No messages to purge found")
+
     if message.channel.id == int(os.getenv("BOT_SETTINGS")):
         if msg.startswith(".power"):
             await power(message)
