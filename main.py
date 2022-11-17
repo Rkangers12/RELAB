@@ -9,10 +9,12 @@ from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
 
 from jobs.bills_report import BillsReport
+from jobs.budgets_report import BudgetsReport
 from jobs.payslip_report import PayslipReport
 from jobs.subscriptions_report import SubscriptionsReport
 from jobs.summary_report import SummaryReport
 
+from util.budget_handler import BudgetHandler
 from util.handle_times import HandleTimes
 from util.monitor import Monitor
 from util.monitor_subscriptions import SubscriptionsMonitor
@@ -25,6 +27,7 @@ client = discord.Client(intents=intents)
 
 datastore = Handler()
 hand_time = HandleTimes()
+
 studytrack = SessionTrack("study_records", "studying", datastore=datastore)
 gymtrack = SessionTrack("gym_records", "gymming", datastore=datastore)
 
@@ -32,6 +35,8 @@ sesscomms = SessionCommands(
     datastore=datastore, studytrack=studytrack, gymtrack=gymtrack
 )
 inc_coms = IncomeCommands(datastore=datastore)
+
+budget_handler = BudgetHandler(datastore=datastore)
 bills_monitor = Monitor("bill", "billsData", datastore=datastore)
 subs_monitor = SubscriptionsMonitor(
     "subscription", "subscriptionsData", datastore=datastore
@@ -83,9 +88,19 @@ async def on_ready():
     if not subscriptionTask.subscription_reporter.is_running():
         subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
         print(
-            "Booted Background Process #4: Subscription Reporter - {0.user}\n".format(
+            "Booted Background Process #4: Subscription Reporter - {0.user}".format(
                 client
             )
+        )
+
+    budgetTask = BudgetsReport(
+        channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
+    )
+
+    if not budgetTask.budget_reporter.is_running():
+        budgetTask.budget_reporter.start()  # if the task is not already runnning, start.
+        print(
+            "Booted Background Process #5: Budget Reporter - {0.user}\n".format(client)
         )
 
 
@@ -489,6 +504,63 @@ async def on_message(message):
                                 resp.get("subscription")
                             )
                         )
+
+            # create a budget NAME EXPIRATION LIMIT
+            # modify limit NAME LIMIT
+            # modify expiration NAME EXPIRATION
+            # get budget (check) NAME
+            # get all budgets
+            if msg.startswith(".budgets"):
+                await message.delete()
+
+                budgets = budget_handler.get_all_budgets
+                await message.channel.send(f"**Budget threshold is £{thres} - RELAB**")
+
+            # get all archived
+            if msg.startswith(".archivedbudgets"):
+                await message.delete()
+
+                budgets = budget_handler.get_all_archived
+                await message.channel.send(f"**Budget threshold is £{thres} - RELAB**")
+
+            if msg.startswith(".setbudgethold"):
+                await message.delete()
+
+                val = msg.split(" ")[1]
+                budget_handler.set_threshold(val)
+
+                await message.channel.send(f"**Budget threshold set £{val} - RELAB**")
+
+            if msg.startswith(".getbudgethold"):
+                await message.delete()
+
+                thres = budget_handler.get_threshold
+                await message.channel.send(f"**Budget threshold is £{thres} - RELAB**")
+
+            # record spending NAME SPENDING
+
+            if msg.startswith(".budgetbalance"):
+                await message.delete()
+
+                name = msg.split(" ")[1]
+                balance = max(0, budget_handler.get_remaining(name))
+
+                await message.channel.send(
+                    f"**{name} budget has £{balance} balance remaining - RELAB.**"
+                )
+
+            if msg.startswith(".deletebudget"):
+                await message.delete()
+
+                name = msg.split(" ")[1]
+                budget_handler.delete_budget(name)
+
+                await message.channel.send(
+                    f"**{name} budget has been deleted. - RELAB**"
+                )
+
+            # archive a budget NAME
+            # get budget spending
 
 
 client.run(os.getenv("TOKEN"))
