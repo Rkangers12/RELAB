@@ -89,18 +89,16 @@ class HandleTimes:
         day = day or now.day
 
         # ensure the day has not been passed
-        month_incre = 0
+        month = now.month
         if day < now.day:
-            month_incre += 1
+            month = month + 1 if month != 12 else 1
 
         # check that day provided does not exceed number of days in month
-        day_limit = self.calculate_days(
-            month=(now.month + month_incre), period="month"
-        )[1]
+        day_limit = self.calculate_days(month=(month), period="month")[1]
         if day > day_limit:
             day = day_limit
 
-        date_period = date(year=now.year, month=(now.month + month_incre), day=day)
+        date_period = date(year=now.year, month=(month), day=day)
 
         # if True, keep same day if weekday else find closest weekday occuring before day
         if weekday:
@@ -110,7 +108,7 @@ class HandleTimes:
                 day = day - (sel_data_num - 4)
             elif sel_data_num > 4:
                 day = day + (6 - sel_data_num)
-            date_period = date(year=now.year, month=(now.month + month_incre), day=day)
+            date_period = date(year=now.year, month=(month), day=day)
 
         return date_period
 
