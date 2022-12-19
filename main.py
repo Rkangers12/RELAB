@@ -741,12 +741,18 @@ async def on_message(message):
                         "**.deletebudget** <name e.g. coffee>",
                         "**.archivebudget** <name e.g. coffee>",
                         "**.spendingbudget** <name e.g. coffee>",
+                        "**.resetbudgetarchive**",
                         "**.helpbudget**",
                     ]
                 }
 
                 for command in commands["budget"]:
                     await message.channel.send(command)
+
+            if msg.startswith(".resetbudgetarchive"):
+                await message.delete()
+                budget_handler.reset_archive
+                await message.channel.send("Reset budget archive. - RELAB")
 
 
 client.run(os.getenv("TOKEN"))
