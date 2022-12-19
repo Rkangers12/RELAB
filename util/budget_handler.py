@@ -37,21 +37,23 @@ class BudgetHandler:
     def create_budget(self, name, expiration, limit):
         """store the budget within the database"""
 
-        if self.check_budget_exists(name):
-            print("DEBUG: Budget exists.")
-            return 201
+        if not self.check_budget_exists(name):
+            try:
+                budget = {
+                    "creation": str(self._handletime.format_a_day(datetime.now().day)),
+                    "expiration": str(self._handletime.format_a_day(int(expiration))),
+                    "limit": float(limit),
+                    "spending": 0.00,
+                }
+            except IndexError:
+                return 404
+            else:
+                self._datastore.overwrite_nested(
+                    [self._budgetkey, "budgets"], name, budget
+                )
+                return 200
 
-        try:
-            budget = {
-                "creation": str(self._handletime.format_a_day(datetime.now().day)),
-                "expiration": str(self._handletime.format_a_day((expiration))),
-                "limit": float(limit),
-                "spending": 0.00,
-            }
-        except ValueError:
-            pass
-        else:
-            self._datastore.overwrite_nested([self._budgetkey, "budgets"], name, budget)
+        return 201
 
     def check_budget_exists(self, name):
         """check if the budget is already existing"""
@@ -62,18 +64,34 @@ class BudgetHandler:
     def modify_budget_limit(self, name, limit):
         """change the budget limit to new value"""
 
-        self._datastore.overwrite_nested(
-            [self._budgetkey, "budgets", name], "limit", limit
-        )
+        if self.check_budget_exists(name):
+            try:
+                self._datastore.overwrite_nested(
+                    [self._budgetkey, "budgets", name], "limit", float(limit)
+                )
+            except ValueError:
+                return 404
+
+            return 200
+
+        return 204
 
     def modify_budget_expiration(self, name, expiration):
         """change the budget expiration to new value"""
 
-        self._datastore.overwrite_nested(
-            [self._budgetkey, "budgets", name],
-            "expiration",
-            str(self._handletime.format_a_day((expiration))),
-        )
+        if self.check_budget_exists(name):
+            try:
+                self._datastore.overwrite_nested(
+                    [self._budgetkey, "budgets", name],
+                    "expiration",
+                    str(self._handletime.format_a_day(int((expiration)))),
+                )
+            except ValueError:
+                return 404
+
+            return 200
+
+        return 204
 
     def get_budget(self, name):
         """get the data of the provided data"""
@@ -96,43 +114,58 @@ class BudgetHandler:
         """record spending to existing budget"""
 
         budget = self.get_budget(name)
-        spending = budget["spending"] + spending
+        if self.check_budget_exists(name):
+            spending = budget["spending"] + spending
 
-        self._datastore.overwrite_nested(
-            [self._budgetkey, "budgets", name], "spending", spending
-        )
+            self._datastore.overwrite_nested(
+                [self._budgetkey, "budgets", name], "spending", spending
+            )
 
-        res = 200
-        remaining = self.get_remaining(name)
+            res = 200
+            remaining = self.get_remaining(name)
 
-        if remaining < 0:
-            res = 401
-        elif remaining < self.get_threshold:
-            res = 204
+            if remaining < 0:
+                res = 203
+            elif remaining < self.get_threshold:
+                res = 204
 
-        return res
+            return res
+        else:
+            return 201
 
     def get_remaining(self, name):
         """get the spending remaining for a budget"""
 
         budget = self.get_budget(name)
 
-        return budget.get("limit") - budget.get("spending")
+        if self.check_budget_exists(name):
+            return budget.get("limit") - budget.get("spending")
+        else:
+            None
 
     def delete_budget(self, name):
         """delete a budget within the database"""
 
-        self._datastore.delete_nested([self._budgetkey, "budgets"], name)
+        if self.check_budget_exists(name):
+            self._datastore.delete_nested([self._budgetkey, "budgets"], name)
+            return 200
+        else:
+            return 201
 
     def archive_budget(self, name):
         """re-locate an existing budget to the archives"""
 
-        budget = self.get_budget(name)
-        budget["og_name"] = name
-        idify = f"{name}_{uuid4().hex[:6]}"
+        if self.check_budget_exists(name):
+            budget = self.get_budget(name)
+            budget["og_name"] = name
+            idify = f"{name}_{uuid4().hex[:6]}"
 
-        self._datastore.overwrite_nested([self._budgetkey, "archive"], idify, budget)
-        self.delete_budget(name)
+            self._datastore.overwrite_nested(
+                [self._budgetkey, "archive"], idify, budget
+            )
+            self.delete_budget(name)
+        else:
+            return 201
 
     def check_expired(self, name):
         """compare expiration against today's date"""

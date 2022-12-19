@@ -44,7 +44,6 @@ class Handler:
             for key in keys[1:]:
                 if traversed == default:
                     return traversed
-
                 traversed = traversed.get(key, default)
 
         return traversed
