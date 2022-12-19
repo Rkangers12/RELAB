@@ -1,7 +1,7 @@
-import discord
 import os
 from uuid import uuid4
 from dotenv import load_dotenv
+import discord
 
 from store.handler import Handler
 
@@ -9,10 +9,12 @@ from tools.income_commands import IncomeCommands
 from tools.session_commands import SessionCommands
 
 from jobs.bills_report import BillsReport
+from jobs.budgets_report import BudgetsReport
 from jobs.payslip_report import PayslipReport
 from jobs.subscriptions_report import SubscriptionsReport
 from jobs.summary_report import SummaryReport
 
+from util.budget_handler import BudgetHandler
 from util.handle_times import HandleTimes
 from util.monitor import Monitor
 from util.monitor_subscriptions import SubscriptionsMonitor
@@ -25,6 +27,7 @@ client = discord.Client(intents=intents)
 
 datastore = Handler()
 hand_time = HandleTimes()
+
 studytrack = SessionTrack("study_records", "studying", datastore=datastore)
 gymtrack = SessionTrack("gym_records", "gymming", datastore=datastore)
 
@@ -32,6 +35,8 @@ sesscomms = SessionCommands(
     datastore=datastore, studytrack=studytrack, gymtrack=gymtrack
 )
 inc_coms = IncomeCommands(datastore=datastore)
+
+budget_handler = BudgetHandler(datastore=datastore)
 bills_monitor = Monitor("bill", "billsData", datastore=datastore)
 subs_monitor = SubscriptionsMonitor(
     "subscription", "subscriptionsData", datastore=datastore
@@ -83,9 +88,19 @@ async def on_ready():
     if not subscriptionTask.subscription_reporter.is_running():
         subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
         print(
-            "Booted Background Process #4: Subscription Reporter - {0.user}\n".format(
+            "Booted Background Process #4: Subscription Reporter - {0.user}".format(
                 client
             )
+        )
+
+    budgetTask = BudgetsReport(
+        channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
+    )
+
+    if not budgetTask.budget_reporter.is_running():
+        budgetTask.budget_reporter.start()  # if the task is not already runnning, start.
+        print(
+            "Booted Background Process #5: Budget Reporter - {0.user}\n".format(client)
         )
 
 
@@ -489,6 +504,249 @@ async def on_message(message):
                                 resp.get("subscription")
                             )
                         )
+
+            if msg.startswith(".createbudget"):
+                await message.delete()
+
+                try:
+                    name, expiration, limit = msg.split(" ")[1:]
+                except ValueError:
+                    res = 400
+                else:
+                    res = budget_handler.create_budget(name, expiration, limit)
+
+                if res == 200:
+                    await message.channel.send(
+                        f"Created a **{name}** budget expiring **{hand_time.format_a_day(int(expiration))}** of **£{limit}**"
+                    )
+                elif res == 201:
+                    await message.channel.send(
+                        f"Budget **{name}** already exists, please **delete** or **archive** it first."
+                    )
+                else:
+                    await message.channel.send(
+                        f"Error creating budget. Please use command: '**.createbudget <name e.g. coffee> <expiration e.g. 14> <limit e.g. 50>**'"
+                    )
+
+            if msg.startswith(".budgetlimit"):
+                await message.delete()
+
+                try:
+                    name, limit = msg.split(" ")[1:]
+                except ValueError:
+                    res = 400
+                else:
+                    res = budget_handler.modify_budget_limit(name, limit)
+
+                if res == 200:
+                    await message.channel.send(
+                        f"Modified **{name}** budget to £**{limit}**."
+                    )
+                elif res == 204:
+                    await message.channel.send(
+                        f"Budget **{name}** does not exist. Please create using **'.createbudget'** first."
+                    )
+                else:
+                    await message.channel.send(
+                        f"Error modifying limit. Please use command: '**.budgetlimit <name e.g. coffee> <limit e.g. 50>**'"
+                    )
+
+            if msg.startswith(".budgetexpiration"):
+                await message.delete()
+
+                try:
+                    name, expiration = msg.split(" ")[1:]
+                except ValueError:
+                    res = 400
+                else:
+                    res = budget_handler.modify_budget_expiration(name, expiration)
+
+                if res == 200:
+                    await message.channel.send(
+                        f"Modified **{name}** budget to **{hand_time.format_a_day(int(expiration))}**."
+                    )
+                elif res == 204:
+                    await message.channel.send(
+                        f"Budget **{name}** does not exist. Please create using **'.createbudget'** first."
+                    )
+                else:
+                    await message.channel.send(
+                        f"Error modifying expiration. Please use command: '**.budgetexpiration <name e.g. coffee> <expiration e.g. 12>**'"
+                    )
+
+            if msg.startswith(".getbudget"):
+                await message.delete()
+
+                try:
+                    name = msg.split(" ")[1]
+                except (ValueError, IndexError):
+                    budget = None
+                else:
+                    budget = budget_handler.get_budget(name)
+                    if budget is not None:
+                        await message.channel.send(
+                            f"You've spent **£{budget.get('spending')}** of your **£{budget.get('limit')}** {name} budget lasting till **{budget.get('expiration')}**."
+                        )
+
+                if budget is None:
+                    await message.channel.send(
+                        "Error retrieving budget, please use '**.getbudget <name e.g. coffee>**'"
+                    )
+
+            if msg.startswith(".budgets"):
+                await message.delete()
+
+                budgets = budget_handler.get_all_budgets
+                for budget in budgets:
+                    meta = budgets[budget]
+                    await message.channel.send(
+                        f"You've spent £**{meta.get('spending')}** of your £**{meta.get('limit')}**, **{budget}** budget lasting till **{meta.get('expiration')}**."
+                    )
+
+            if msg.startswith(".setthreshold"):
+                await message.delete()
+
+                try:
+                    val = float(msg.split(" ")[1])
+                except (IndexError, ValueError):
+                    await message.channel.send(
+                        "Error modifying threshold, please use '**.setthreshold <value e.g. 10>**'."
+                    )
+                else:
+                    budget_handler.set_threshold(val)
+
+                    await message.channel.send(
+                        f"Updated budget **threshold level alert** to £**{val}** - RELAB"
+                    )
+
+            if msg.startswith(".getthreshold"):
+                await message.delete()
+
+                thres = budget_handler.get_threshold
+                await message.channel.send(
+                    f"Current budget **threshold level alert** is £**{thres}** - RELAB"
+                )
+
+            if msg.startswith(".spentbudget"):
+                await message.delete()
+
+                try:
+                    name, spending = msg.split(" ")[1:]
+                    spending = float(spending)
+                except (ValueError, TypeError):
+                    res = 201
+                else:
+                    res = budget_handler.record_spending(name, spending)
+                    budget = budget_handler.get_budget(name)
+
+                if res != 201:
+                    await message.channel.send(
+                        f"Recorded spending of **£{spending}** toward your '**{name}**' budget. "
+                        f"You've spent £**{budget.get('spending')}** of your £**{budget.get('limit')}** "
+                        f"**{name}** budget lasting till **{budget.get('expiration')}**."
+                    )
+                    if res == 203:
+                        await message.channel.send(
+                            f"**Balance expired**. You've reached your **{name}** budget."
+                        )
+                        budget_handler.archive_budget(name)
+                    elif res == 204:
+                        await message.channel.send(
+                            f"**Balance warning**. You've spent £**{budget.get('spending')}** of your £**{budget.get('limit')}** remaining **{name}** budget."
+                        )
+                else:
+                    await message.channel.send(
+                        "Error recording spending, please use '**.spentbudget <name e.g. coffee> <spending e.g. 12.50>**'"
+                    )
+
+            if msg.startswith(".budgetbalance"):
+                await message.delete()
+
+                try:
+                    name = msg.split(" ")[1]
+                except IndexError:
+                    await message.channel.send(
+                        "Error getting budget balance, please use '**.budgetbalance <name e.g. coffee>**'"
+                    )
+                else:
+                    try:
+                        balance = max(0, budget_handler.get_remaining(name))
+                    except TypeError:
+                        await message.channel.send(
+                            "Error getting budget balance, please use '**.budgetbalance <name e.g. coffee>**'"
+                        )
+                    else:
+                        await message.channel.send(
+                            f"Budget **{name}** has a remaining balance of £**{balance}** - RELAB."
+                        )
+
+            if msg.startswith(".deletebudget"):
+                await message.delete()
+
+                try:
+                    name = msg.split(" ")[1]
+                except IndexError:
+                    await message.channel.send(
+                        "Error deleting budget, please use '**.deletebudget <name e.g. coffee>**'"
+                    )
+                else:
+                    res = budget_handler.delete_budget(name)
+                    if res == 200:
+                        await message.channel.send(
+                            f"Budget **{name}** has been **deleted**. - RELAB."
+                        )
+                    else:
+                        await message.channel.send(
+                            f"Budget **{name}** doesn't exist, please provide an existing budget."
+                        )
+
+            if msg.startswith(".archivebudget"):
+                await message.delete()
+
+                try:
+                    name = msg.split(" ")[1]
+                except IndexError:
+                    await message.channel.send(
+                        "Error archiving budget, please use '**.archivebudget <name e.g. coffee>**'"
+                    )
+                else:
+                    res = budget_handler.archive_budget(name)
+                    if res != 201:
+                        await message.channel.send(
+                            f"Budget **{name}** has been **archived**. - RELAB"
+                        )
+                    else:
+                        await message.channel.send(
+                            f"Budget **{name}** doesn't exist, please provide an existing budget."
+                        )
+
+            if msg.startswith(".spendingbudget"):
+                await message.delete()
+
+                await message.channel.send(
+                    f"**Your spending across all active budgets is {budget_handler.budget_spending}. - RELAB**"
+                )
+
+            if msg.startswith(".helpbudget"):
+                await message.delete()
+                commands = {
+                    "budget": [
+                        "**.createbudget** <name e.g. coffee> <expiration e.g. 13> <limit e.g 50>",
+                        "**.budgetlimit** <name e.g. coffee> <limit e.g 50>",
+                        "**.budgetexpiration** <name e.g. coffee> <expiration e.g. 13>",
+                        "**.getbudget** <name e.g. coffee>",
+                        "**.budgets**",
+                        "**.setthreshold** <threshold e.g. 7.50>",
+                        "**.spentbudget** <name e.g. coffee> <spending e.g. 12.40>",
+                        "**.deletebudget** <name e.g. coffee>",
+                        "**.archivebudget** <name e.g. coffee>",
+                        "**.spendingbudget** <name e.g. coffee>",
+                        "**.helpbudget**",
+                    ]
+                }
+
+                for command in commands["budget"]:
+                    await message.channel.send(command)
 
 
 client.run(os.getenv("TOKEN"))
