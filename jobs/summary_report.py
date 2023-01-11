@@ -25,7 +25,7 @@ class SummaryReport:
 
         start = self._ht.convert_timestamp(
             self._ht.current_timestamp()
-            - (86400 * self._ht.calculate_days(period="week")),
+            - (86400 * self._ht.calculate_days(period=period)),
             "clean",
         )[:10]
         end = self._ht.convert_timestamp(self._ht.current_timestamp(), "clean")[:10]
