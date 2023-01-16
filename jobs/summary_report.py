@@ -15,19 +15,21 @@ class SummaryReport:
         self._intents = intents or discord.Intents.all()
         self._client = client or discord.Client(intents=self._intents)
         self._sessions = sessions or []
-
-        self._task_time = time(
-            hour=23, minute=55, second=00
-        )  # Create the time on which the task should always run
         self._channel_id = channel_id
+
+        # Create the time on which the task should always run
+        self._task_time = time(hour=23, minute=55, second=00)
 
     def breakdown_generate(self, period):
 
+        period_resp = self._ht.calculate_days(period=period)
+        days = period_resp[1] if period == "month" else period_resp
+
         start = self._ht.convert_timestamp(
-            self._ht.current_timestamp()
-            - (86400 * self._ht.calculate_days(period=period)),
+            self._ht.current_timestamp() - (86400 * days),
             "clean",
         )[:10]
+
         end = self._ht.convert_timestamp(self._ht.current_timestamp(), "clean")[:10]
 
         session_breakdown = []
@@ -54,13 +56,13 @@ class SummaryReport:
 
         channel = self._client.get_channel(self._channel_id)
 
-        if self._ht.check_end_week():
+        if self._ht.check_end_week() or True:
             await channel.send("\n".join(self.breakdown_generate("week")))
 
-        if self._ht.check_end_month():
+        if self._ht.check_end_month() or True:
             await channel.send("\n".join(self.breakdown_generate("month")))
 
-        if self._ht.check_end_year():
+        if self._ht.check_end_year() or True:
             await channel.send("\n".join(self.breakdown_generate("year")))
 
     @tasks.loop(seconds=600)  # Create the task
@@ -71,33 +73,28 @@ class SummaryReport:
 
         if now.time() > self._task_time:
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
-            seconds_until_midnight = (
-                midnight - now
-            ).total_seconds()  # Seconds until tomorrow (midnight)
-            await asyncio.sleep(
-                seconds_until_midnight
-            )  # Sleep until midnight and then loop shall begin
+
+            # Seconds until tomorrow (midnight)
+            seconds_until_midnight = (midnight - now).total_seconds()
+            await asyncio.sleep(seconds_until_midnight)  # sleep till 00:00 & start loop
 
         # Loop begins
         while True:
             now = datetime.now()
 
-            # functionality to wait till activation time
-            activate_time = datetime.combine(
-                now.date(), self._task_time
-            )  # 23:55:00 PM today
+            # functionality to wait till activation time - 23:55:00 PM today
+            activate_time = datetime.combine(now.date(), self._task_time)
+
             seconds_until_activate = (activate_time - now).total_seconds()
-            await asyncio.sleep(
-                seconds_until_activate
-            )  # Sleep until we hit the activation time
+            await asyncio.sleep(seconds_until_activate)  # Sleep until activation time
 
             await self.background_reporter()  # Call the helper function that sends the message
 
             # functionality to wait till midnight
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
-            seconds_until_midnight = (
-                midnight - now
-            ).total_seconds()  # Seconds until tomorrow (midnight)
-            await asyncio.sleep(
-                seconds_until_midnight
-            )  # Sleep until tomorrow and then the loop will start a new iteration
+
+            # Seconds until tomorrow (midnight)
+            seconds_until_midnight = (midnight - now).total_seconds()
+
+            # Sleep until tomorrow and then the loop will start a new iteration
+            await asyncio.sleep(seconds_until_midnight)
