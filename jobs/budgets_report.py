@@ -24,7 +24,7 @@ class BudgetsReport:
 
         self._task_time = time(hour=7, minute=15, second=00)
 
-    async def budget_reporter(self):
+    async def background_reporter(self):
         """checks for expiration or exceeding of budgets"""
 
         channel = self._client.get_channel(self._channel_id)
@@ -34,36 +34,41 @@ class BudgetsReport:
         for budget in budgets:
             # Call check_expired method. Compares the dates, if expired then it is to be archived.
             if self._budget.check_expired(budget):
-                await channel.send("{budget} budget has expired, archived accordingly.")
+                await channel.send(
+                    f"**{budget}** budget has **expired**, archived accordingly."
+                )
+                continue
 
             remaining = self._budget.get_remaining(budget)
-            if remaining < 0:
-                # If the budget has exceeded the threshold, then send out an alert to the user.
-                channel.send(
-                    f"You've exceeded your {budget} budget of limit: £{budgets.get(budget, {}).get('limit')} by £{abs(remaining)}."
+
+            if remaining <= 0:
+                await channel.send(
+                    f"You've met your **{budget}** budget, **no further spending** for period ending **{budgets.get(budget, {}).get('expiration')}**. Automatically starting archive process."
                 )
+                self._budget.archive_budget(budget)
             elif remaining < self._budget.get_threshold:
                 # if the budget is nearing the threshold, then send out an alert.
-                channel.send(
-                    f"You are nearing your {budget} budget of limit: £{budgets.get(budget, {}).get('limit')}."
+                await channel.send(
+                    f"Your remaining budget for **{budget}** has fallen below your threshold - £**{budgets.get(budget, {}).get('spending')}** | £**{budgets.get(budget, {}).get('limit')}**."
                 )
 
         # Monthly check to be performed on the last day of the month:
-        if self._ht.check_end_month():
-            channel.send("Providing budget summary for end of month:")
+        if self._ht.check_end_month() or True:
+            await channel.send("**Providing budget summary for end of month:**")
 
             # Post budget report -> Send out a message of all archived budgets for the month.
             archived = self._budget.get_all_archived
 
             for archive in archived:
 
+                name = archived.get(archive, {}).get("og_name")
                 remaining = self._budget.get_remaining(archive)
-                statistic = "over" if remaining > 0 else "under"
+                statistic = "missed" if remaining < 0 else "within"
                 creation = archived.get(archive, {}).get("creation")
                 expiration = archived.get(archive, {}).get("expiration")
 
-                channel.send(
-                    f"{archive} budget [{creation}] [{expiration}]: {statistic}budget by {remaining}."
+                await channel.send(
+                    f"    - [**{creation} : {expiration}**] **{name}** budget: **{statistic}** budget by **{remaining}**."
                 )
 
             # Reset the archived budgets dictionary for the following month.
@@ -80,7 +85,7 @@ class BudgetsReport:
             #  Seconds until tomorrow (midnight)
             seconds_until_midnight = (midnight - now).total_seconds()
             # Sleep until midnight and then loop shall begin
-            await asyncio.sleep(seconds_until_midnight)  # TESTING ADJUSTABLE
+            # await asyncio.sleep(seconds_until_midnight)  # TESTING ADJUSTABLE
 
         # Loop begins
         while True:
@@ -92,11 +97,11 @@ class BudgetsReport:
             )  # 07:00:00 AM today
             seconds_until_activate = (activate_time - now).total_seconds()
             # Sleep until RELAB hits the activation time
-            await asyncio.sleep(seconds_until_activate)  # TESTING ADJUSTABLE
-
+            # await asyncio.sleep(seconds_until_activate)  # TESTING ADJUSTABLE
+            print("kicking off budget reporter")
             await self.background_reporter()  # Call the helper function that sends the message
-
+            await asyncio.sleep(30)
             # functionality to wait till midnight
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
             seconds_until_midnight = (midnight - now).total_seconds()
-            await asyncio.sleep(seconds_until_midnight)
+            # await asyncio.sleep(seconds_until_midnight)

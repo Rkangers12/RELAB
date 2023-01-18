@@ -727,6 +727,25 @@ async def on_message(message):
                     f"**Your spending across all active budgets is {budget_handler.budget_spending}. - RELAB**"
                 )
 
+            if msg.startswith(".checkbudgetexp"):
+                await message.delete()
+
+                try:
+                    name = msg.split(" ")[1]
+                except IndexError:
+                    await message.channel.send(
+                        "Error archiving budget, please use '**.archivebudget <name e.g. coffee>**'"
+                    )
+                else:
+                    if budget_handler.check_expired(name):
+                        await message.channel.send(
+                            f"```Your {name} budget has expired.```"
+                        )
+                    else:
+                        await message.channel.send(
+                            f"```Your {name} budget has not expired.```"
+                        )
+
             if msg.startswith(".helpbudget"):
                 await message.delete()
                 commands = {
@@ -740,7 +759,7 @@ async def on_message(message):
                         "**.spentbudget** <name e.g. coffee> <spending e.g. 12.40>",
                         "**.deletebudget** <name e.g. coffee>",
                         "**.archivebudget** <name e.g. coffee>",
-                        "**.spendingbudget** <name e.g. coffee>",
+                        "**.spendingbudget**",
                         "**.resetbudgetarchive**",
                         "**.helpbudget**",
                     ]
