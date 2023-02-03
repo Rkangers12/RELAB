@@ -1,7 +1,9 @@
 import os
-from uuid import uuid4
-from dotenv import load_dotenv
 import discord
+
+from datetime import datetime
+from dotenv import load_dotenv
+from uuid import uuid4
 
 from store.handler import Handler
 
@@ -159,10 +161,11 @@ async def power(message):
 async def on_message(message):
 
     msg = message.content
+    bypass = False
 
     if message.author == client.user:
         if msg.startswith(".payslip"):
-            pass
+            bypass = True
         else:
             return
 
@@ -194,7 +197,7 @@ async def on_message(message):
                 for channel in client.get_all_channels():
                     print(channel.id, channel.name)
 
-        if message.channel.id == int(os.getenv("RELAB_CHANNEL")):
+        if message.channel.id == int(os.getenv("RELAB_CHANNEL")) or bypass:
             if msg.startswith(".study"):
                 await sesscomms.study(message)
 
@@ -314,25 +317,43 @@ async def on_message(message):
 
                 slip = inc_coms.get_payslip()
 
-                comm1 = "**Payslip #{} RELAB**:\n".format(str(uuid4().hex[:10]))
-                comm2 = "```    - Gross income: £{}\n    ".format(
-                    round(slip.get("gross", 0) / 12, 2)
-                )
-                comm3 = "- Tax paid: - £{}\n    ".format(slip.get("tax", 0))
-                comm4 = "- Employee NIC: - £{}\n    ".format(slip.get("nic", 0))
-                if inc_coms.sl_check("activeSL"):
-                    comm5 = "- Student loan paid: - £{}\n    ".format(
-                        slip.get("slt", 0)
-                    )
-                else:
-                    comm5 = ""
-                comm6 = "\n    - Income recievable: £{}```".format(
-                    slip.get("takehome", 0)
+                stub = [f"```Payslip by RELAB:"]
+                stub.append(
+                    f"Date [{hand_time.format_a_day(datetime.now().day)}] | Payslip ID [#{str(uuid4().hex[:10])}]\n"
                 )
 
-                await message.channel.send(
-                    comm1 + comm2 + comm3 + comm4 + comm5 + comm6
+                oset = " " * 8
+                stub.append(f"{oset}- Gross: £{round(slip.get('gross', 0.01) / 12, 2)}")
+                stub.append(f"{oset}- Tax paid: -£{slip.get('tax', 0)}")
+                stub.append(f"{oset}- Employee NIC: -£{slip.get('nic', 0)}")
+
+                if inc_coms.sl_check("activeSL"):
+                    stub.append(f"{oset}- Student loan paid: -£{slip.get('slt', 0)}")
+
+                stub.append(
+                    f"\n{oset}- Income recievable: £{slip.get('takehome', 0)}```"
                 )
+
+                await message.channel.send("\n".join(stub))
+
+            if msg.startswith(".helppayroll"):
+                await message.delete()
+
+                prompt = ["```Payroll Command Prompt Help:"]
+
+                prompt.append("    .setsalary <gross annual e.g. 45000>")
+                prompt.append("    .getsalary")
+                prompt.append("    .setnotionals <notional amount e.g. 100>")
+                prompt.append("    .getnotionals")
+                prompt.append("    .setpaydate <date of pay e.g. 15>")
+                prompt.append("    .getpaydate")
+                prompt.append("    .togglestudentloan")
+                prompt.append("    .checkstudentloan")
+                prompt.append("    .takehome")
+                prompt.append("    .payrollsettings")
+                prompt.append("    .payslip```")
+
+                await message.channel.send("\n".join(prompt))
 
             if msg.startswith(".setbill"):
                 await message.delete()
@@ -345,19 +366,6 @@ async def on_message(message):
                 elif resp == 404:
                     await message.channel.send("Error registering bill. - RELAB")
 
-            if msg.startswith(".registersubscription"):
-                await message.delete()
-                resp = subs_monitor.register(msg)
-
-                if resp == 200:
-                    await message.channel.send(
-                        "New subscription data has been registered. - RELAB"
-                    )
-                elif resp == 404:
-                    await message.channel.send(
-                        "Error registering subscription. - RELAB"
-                    )
-
             if msg.startswith(".updatebill"):
                 await message.delete()
                 resp = bills_monitor.update(msg)
@@ -366,15 +374,6 @@ async def on_message(message):
                     await message.channel.send("Bill data has been updated. - RELAB")
                 elif resp == 404:
                     await message.channel.send("Error updating bill data. - RELAB")
-
-            if msg.startswith(".updatesubscription"):
-                await message.delete()
-                resp = subs_monitor.extend_update(msg)
-
-                if resp == 200:
-                    await message.channel.send("Subscription has been updated. - RELAB")
-                elif resp == 404:
-                    await message.channel.send("Error updating subscription. - RELAB")
 
             if msg.startswith(".getbill"):
                 await message.delete()
@@ -389,19 +388,6 @@ async def on_message(message):
 
                 await message.channel.send(bills_monitor.format_message(resp))
 
-            if msg.startswith(".getsubscription"):
-                await message.delete()
-
-                resp = subs_monitor.get(msg)
-
-                if resp == 404:
-                    await message.channel.send(
-                        "Subscription information provided was invalid. - RELAB"
-                    )
-                    return
-
-                await message.channel.send(subs_monitor.format_message(resp))
-
             if msg.startswith(".getmetabill"):
                 await message.delete()
 
@@ -414,6 +400,66 @@ async def on_message(message):
                     return
 
                 await message.channel.send(bills_monitor.format_message(resp))
+
+            if msg.startswith(".bills"):
+                await message.delete()
+
+                resp = bills_monitor.get_all()
+                for msg_res in resp:
+                    await message.channel.send(bills_monitor.format_message(msg_res))
+
+            if msg.startswith(".delbill"):
+                await message.delete()
+                resp = bills_monitor.delete(msg)
+
+                if resp == 200:
+                    await message.channel.send("Bill data has been deleted. - RELAB")
+                elif resp == 404:
+                    await message.channel.send("Error deleting bill data. - RELAB")
+
+            if msg.startswith(".delmetabill"):
+                await message.delete()
+                resp = bills_monitor.delete_meta(msg)
+
+                if resp == 200:
+                    await message.channel.send("Bill data has been deleted. - RELAB")
+                elif resp == 404:
+                    await message.channel.send("Error deleting bill data. - RELAB")
+
+            if msg.startswith(".registersubscription"):
+                await message.delete()
+                resp = subs_monitor.register(msg)
+
+                if resp == 200:
+                    await message.channel.send(
+                        "New subscription data has been registered. - RELAB"
+                    )
+                elif resp == 404:
+                    await message.channel.send(
+                        "Error registering subscription. - RELAB"
+                    )
+
+            if msg.startswith(".updatesubscription"):
+                await message.delete()
+                resp = subs_monitor.extend_update(msg)
+
+                if resp == 200:
+                    await message.channel.send("Subscription has been updated. - RELAB")
+                elif resp == 404:
+                    await message.channel.send("Error updating subscription. - RELAB")
+
+            if msg.startswith(".getsubscription"):
+                await message.delete()
+
+                resp = subs_monitor.get(msg)
+
+                if resp == 404:
+                    await message.channel.send(
+                        "Subscription information provided was invalid. - RELAB"
+                    )
+                    return
+
+                await message.channel.send(subs_monitor.format_message(resp))
 
             if msg.startswith(".getmetasubscription"):
                 await message.delete()
@@ -428,28 +474,12 @@ async def on_message(message):
 
                 await message.channel.send(subs_monitor.format_message(resp))
 
-            if msg.startswith(".bills"):
-                await message.delete()
-
-                resp = bills_monitor.get_all()
-                for msg_res in resp:
-                    await message.channel.send(bills_monitor.format_message(msg_res))
-
             if msg.startswith(".subscriptions"):
                 await message.delete()
 
                 resp = subs_monitor.get_all()
                 for msg_res in resp:
                     await message.channel.send(subs_monitor.format_message(msg_res))
-
-            if msg.startswith(".delbill"):
-                await message.delete()
-                resp = bills_monitor.delete(msg)
-
-                if resp == 200:
-                    await message.channel.send("Bill data has been deleted. - RELAB")
-                elif resp == 404:
-                    await message.channel.send("Error deleting bill data. - RELAB")
 
             if msg.startswith(".deletesubscription"):
                 await message.delete()
@@ -459,15 +489,6 @@ async def on_message(message):
                     await message.channel.send("Subscription has been deleted. - RELAB")
                 elif resp == 404:
                     await message.channel.send("Error deleting subscripton. - RELAB")
-
-            if msg.startswith(".delmetabill"):
-                await message.delete()
-                resp = bills_monitor.delete_meta(msg)
-
-                if resp == 200:
-                    await message.channel.send("Bill data has been deleted. - RELAB")
-                elif resp == 404:
-                    await message.channel.send("Error deleting bill data. - RELAB")
 
             if msg.startswith(".delmetasub"):
                 await message.delete()
