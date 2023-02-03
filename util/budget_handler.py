@@ -61,6 +61,12 @@ class BudgetHandler:
         if name in self.get_all_budgets:
             return True
 
+    def check_budget_archived(self, name):
+        """check if the budget exists within the archives"""
+
+        if name in self.get_all_archived:
+            return True
+
     def modify_budget_limit(self, name, limit):
         """change the budget limit to new value"""
 
@@ -97,6 +103,11 @@ class BudgetHandler:
         """get the data of the provided data"""
 
         return self._datastore.get_nested_value([self._budgetkey, "budgets", name])
+
+    def get_archived(self, name):
+        """get the budget which has been archived"""
+
+        return self._datastore.get_nested_value([self._budgetkey, "archive", name])
 
     @property
     def get_all_budgets(self):
@@ -135,10 +146,9 @@ class BudgetHandler:
 
     def get_remaining(self, name):
         """get the spending remaining for a budget"""
+        budget = self.get_budget(name) or self.get_archived(name)
 
-        budget = self.get_budget(name)
-
-        if self.check_budget_exists(name):
+        if self.check_budget_exists(name) or self.check_budget_archived(name):
             return budget.get("limit") - budget.get("spending")
         else:
             None
@@ -167,14 +177,17 @@ class BudgetHandler:
         else:
             return 201
 
-    def check_expired(self, name):
+    def check_expired(self, name=None):
         """compare expiration against today's date"""
+
+        if name is None:
+            return False
 
         # retrieve today's day to compare against expiration
         today = str(self._handletime.format_a_day(datetime.now().day))
         budget = self.get_budget(name)
 
-        if today == budget.get("expiration"):
+        if today > budget.get("expiration"):
             self.archive_budget(name)
             return True
 

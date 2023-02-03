@@ -24,7 +24,7 @@ class BudgetsReport:
 
         self._task_time = time(hour=7, minute=15, second=00)
 
-    async def budget_reporter(self):
+    async def background_reporter(self):
         """checks for expiration or exceeding of budgets"""
 
         channel = self._client.get_channel(self._channel_id)
@@ -34,38 +34,56 @@ class BudgetsReport:
         for budget in budgets:
             # Call check_expired method. Compares the dates, if expired then it is to be archived.
             if self._budget.check_expired(budget):
-                await channel.send("{budget} budget has expired, archived accordingly.")
+                await channel.send(
+                    f"```{budget.title()} budget has expired, archived accordingly.```"
+                )
+                continue
 
             remaining = self._budget.get_remaining(budget)
-            if remaining < 0:
-                # If the budget has exceeded the threshold, then send out an alert to the user.
-                channel.send(
-                    f"You've exceeded your {budget} budget of limit: £{budgets.get(budget, {}).get('limit')} by £{abs(remaining)}."
+
+            if remaining <= 0:
+                await channel.send(
+                    f"```You've met your {budget.title()} budget, no further spending for period ending {budgets.get(budget, {}).get('expiration')}. Automatically starting archive process.```"
                 )
+                self._budget.archive_budget(budget)
             elif remaining < self._budget.get_threshold:
                 # if the budget is nearing the threshold, then send out an alert.
-                channel.send(
-                    f"You are nearing your {budget} budget of limit: £{budgets.get(budget, {}).get('limit')}."
+                await channel.send(
+                    f"```You've spent £{budgets.get(budget, {}).get('spending')} on {budget.title()} which has fallen below your budget threshold for limit £{budgets.get(budget, {}).get('limit')}.```"
                 )
 
         # Monthly check to be performed on the last day of the month:
-        if self._ht.check_end_month():
-            channel.send("Providing budget summary for end of month:")
-
+        if self._ht.check_end_month() or True:
             # Post budget report -> Send out a message of all archived budgets for the month.
             archived = self._budget.get_all_archived
 
+            message = ["```Monthly Budget Breakdown:"]
+            message.append(
+                f"    Period Ending: [{self._ht.convert_timestamp(self._ht.current_timestamp(), 'clean')}]"
+            )
+
+            budget_messages = []
+            success = 0
             for archive in archived:
 
+                name = archived.get(archive, {}).get("og_name")
                 remaining = self._budget.get_remaining(archive)
-                statistic = "over" if remaining > 0 else "under"
-                creation = archived.get(archive, {}).get("creation")
+                statistic = "missed" if remaining < 0 else "within"
                 expiration = archived.get(archive, {}).get("expiration")
 
-                channel.send(
-                    f"{archive} budget [{creation}] [{expiration}]: {statistic}budget by {remaining}."
+                if statistic == "within":
+                    success += 1
+
+                budget_messages.append(
+                    f"        - [{expiration}] {name.title()} budget: {statistic} budget by £{abs(remaining)}."
                 )
 
+            message.append(f"    [{success}/{len(archived)}] budgets successfully met.")
+            if len(archived) > 0:
+
+                message = message + budget_messages
+                message.append("\n(Summary brought to you by RELAB)```")
+                await channel.send("\n".join(message))
             # Reset the archived budgets dictionary for the following month.
             self._budget.reset_archive
 
@@ -93,10 +111,10 @@ class BudgetsReport:
             seconds_until_activate = (activate_time - now).total_seconds()
             # Sleep until RELAB hits the activation time
             await asyncio.sleep(seconds_until_activate)  # TESTING ADJUSTABLE
-
+            print("kicking off budget reporter")
             await self.background_reporter()  # Call the helper function that sends the message
-
+            await asyncio.sleep(30)
             # functionality to wait till midnight
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
             seconds_until_midnight = (midnight - now).total_seconds()
-            await asyncio.sleep(seconds_until_midnight)
+            await asyncio.sleep(seconds_until_midnight)  # TESTING ADJUSTABLE
