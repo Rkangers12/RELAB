@@ -21,7 +21,7 @@ from util.handle_times import HandleTimes
 from util.monitor import Monitor
 from util.monitor_subscriptions import SubscriptionsMonitor
 from util.session_tracker import SessionTrack
-
+from util.temp_monitor import Tempy
 
 load_dotenv()
 intents = discord.Intents.all()
@@ -39,6 +39,7 @@ sesscomms = SessionCommands(
 inc_coms = IncomeCommands(datastore=datastore)
 
 budget_handler = BudgetHandler(datastore=datastore)
+temp_monitor = Tempy("bill", datastore=datastore)
 bills_monitor = Monitor("bill", "billsData", datastore=datastore)
 subs_monitor = SubscriptionsMonitor(
     "subscription", "subscriptionsData", datastore=datastore
@@ -118,27 +119,6 @@ async def snapshot(message):
     )
 
 
-async def help(message):
-    """display helper information regarding RELAB"""
-
-    await message.delete()
-    greeting = "Hi, Welcome to 'Ranveer's Easy Life Autonomy Bot' or 'RELAB' for short."
-    message2 = "I see that you have requested some help, here is a breakdown of my current services:"
-    cmd1 = "    - .hello    -> I provide a greeting."
-    cmd2 = "    - .snapshot -> I perform a backup of your existing data to keep it extra safe. xD"
-    cmd3 = "    - .study    -> I `activate/deactivate` study mode and make a log of the session."
-    cmd4 = "    - .getstudy -> I tell you how long your study session has been active."
-    cmd5 = "    - .gym    -> I `activate/deactivate` gym mode and make a log of the session."
-    cmd6 = "    - .getgym -> I tell you how long your gym session has been active."
-    cmd7 = "    - .help     -> I provide some help to yourself, as is occurring now!"
-
-    support = "```{}\n\n{}\n\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n```".format(
-        greeting, message2, cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7
-    )
-
-    await message.channel.send(support)
-
-
 async def power(message):
     """command center for those relating to the bot settings"""
     await message.delete()
@@ -187,8 +167,68 @@ async def on_message(message):
                 await snapshot(message)
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
-            if msg.startswith(".help"):
-                await help(message)
+
+            if msg.startswith(".helppayroll"):
+                await message.delete()
+
+                prompt = ["```Payroll Command Prompt Help:"]
+
+                prompt.append("    .setsalary <gross annual e.g. 45000>")
+                prompt.append("    .getsalary")
+                prompt.append("    .setnotionals <notional amount e.g. 100>")
+                prompt.append("    .getnotionals")
+                prompt.append("    .setpaydate <date of pay e.g. 15>")
+                prompt.append("    .getpaydate")
+                prompt.append("    .togglestudentloan")
+                prompt.append("    .checkstudentloan")
+                prompt.append("    .takehome")
+                prompt.append("    .payrollsettings")
+                prompt.append("    .payslip")
+                prompt.append("    .helppayroll```")
+
+                await message.channel.send("\n".join(prompt))
+
+            if msg.startswith(".helpbills"):
+                await message.delete()
+
+                prompt = ["```Bill Command Prompt Help:"]
+                prompt.append(
+                    "    .createbill <name e.g. rent> ‹exp e.g. 14> <limit e.g. 50>"
+                )
+                prompt.append("    .billlimit <name e.g. rent> <limit e.g. 50>")
+                prompt.append("    .billexpiration <name e.g. rent> <exp e.g. 1>")
+                prompt.append("    .retrievebill <name e.g. rent>")
+                prompt.append("    .bills")
+                prompt.append("    .deletebill <name e.g. rent>")
+                prompt.append("    .deleteallbills")
+                prompt.append("    .helpbills```")
+
+                await message.channel.send("\n".join(prompt))
+
+            if msg.startswith(".helpbudget"):
+                await message.delete()
+
+                prompt = ["```Budget Command Prompt Help:"]
+                prompt.append(
+                    "    .createbudget <name e.g. coffee> <expiration e.g. 13> <limit e.g 50>"
+                )
+                prompt.append("    .budgetlimit <name e.g. coffee> <limit e.g 50>")
+                prompt.append(
+                    "    .budgetexpiration <name e.g. coffee> <expiration e.g. 13>"
+                )
+                prompt.append("    .getbudget <name e.g. coffee>")
+                prompt.append("    .budgets")
+                prompt.append("    .setthreshold <threshold e.g. 7.50>")
+                prompt.append(
+                    "    .spentbudget <name e.g. coffee> <spending e.g. 12.40>"
+                )
+                prompt.append("    .deletebudget <name e.g. coffee>")
+                prompt.append("    .archivebudget <name e.g. coffee>")
+                prompt.append("    .spendingbudget")
+                prompt.append("    .resetbudgetarchive")
+                prompt.append("    .helpbudget```")
+
+                await message.channel.send("\n".join(prompt))
 
         if message.channel.id == int(os.getenv("BOT_HELPER")):
             if msg.startswith(".channels"):
@@ -293,24 +333,18 @@ async def on_message(message):
 
             if msg.startswith(".payrollsettings"):
                 await message.delete()
-                comms = (
-                    "Payroll details by RELAB:\n    "
-                    "- Gross Salary: **£{}**\n    "
-                    "- Notionals: **£{}**\n    "
-                    "- Next Pay Day: **{}**\n    "
-                    "- Student Loan: **{}**"
+
+                comms = [f"```Payroll details by RELAB:\n"]
+                comms.append(f"    - Gross Salary: £{inc_coms.get('grossSalary')}")
+                comms.append(f"    - Notionals: £{inc_coms.get('notionals')}")
+                comms.append(
+                    f"    - Next Pay Day: {hand_time.format_a_day(int(inc_coms.get('payDay')), weekday=True)}"
+                )
+                comms.append(
+                    f"    - Student Loan: {'active' if inc_coms.sl_check('activeSL') else 'inactive'}"
                 )
 
-                await message.channel.send(
-                    comms.format(
-                        inc_coms.get("grossSalary"),
-                        inc_coms.get("notionals"),
-                        hand_time.format_a_day(
-                            int(inc_coms.get("payDay")), weekday=True
-                        ),
-                        "active" if inc_coms.sl_check("activeSL") else "inactive",
-                    )
-                )
+                await message.channel.send("\n".join(comms))
 
             if msg.startswith(".payslip"):
                 await message.delete()
@@ -336,95 +370,164 @@ async def on_message(message):
 
                 await message.channel.send("\n".join(stub))
 
-            if msg.startswith(".helppayroll"):
+            def message_sorter(information):
+                """break down information into components"""
+
+                try:
+                    return information.split(" ")[1:]
+                except ValueError:
+                    return 400
+
+            def due_date(day, weekday=True):
+                """convert a day integer in to a date"""
+
+                return hand_time.format_a_day(int(day), weekday=weekday)
+
+            if msg.startswith(".createbill"):
                 await message.delete()
 
-                prompt = ["```Payroll Command Prompt Help:"]
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 3:
+                    name, expiration, limit = components
+                    res = temp_monitor.create(name, expiration, limit)
+                else:
+                    res = 400
 
-                prompt.append("    .setsalary <gross annual e.g. 45000>")
-                prompt.append("    .getsalary")
-                prompt.append("    .setnotionals <notional amount e.g. 100>")
-                prompt.append("    .getnotionals")
-                prompt.append("    .setpaydate <date of pay e.g. 15>")
-                prompt.append("    .getpaydate")
-                prompt.append("    .togglestudentloan")
-                prompt.append("    .checkstudentloan")
-                prompt.append("    .takehome")
-                prompt.append("    .payrollsettings")
-                prompt.append("    .payslip```")
-
-                await message.channel.send("\n".join(prompt))
-
-            if msg.startswith(".setbill"):
-                await message.delete()
-                resp = bills_monitor.set(msg)
-
-                if resp == 200:
+                if res == 200:
                     await message.channel.send(
-                        "New bill data has been registered. - RELAB"
+                        f"```Created {name.title()} bill of £{limit} due on {due_date(expiration)}```"
                     )
-                elif resp == 404:
-                    await message.channel.send("Error registering bill. - RELAB")
-
-            if msg.startswith(".updatebill"):
-                await message.delete()
-                resp = bills_monitor.update(msg)
-
-                if resp == 200:
-                    await message.channel.send("Bill data has been updated. - RELAB")
-                elif resp == 404:
-                    await message.channel.send("Error updating bill data. - RELAB")
-
-            if msg.startswith(".getbill"):
-                await message.delete()
-
-                resp = bills_monitor.get(msg)
-
-                if resp == 404:
+                elif res == 201:
                     await message.channel.send(
-                        "Bill information provided was invalid. - RELAB"
+                        f"```Bill {name.title()} already exists, please delete or modify it.```"
                     )
-                    return
+                else:
+                    await message.channel.send(
+                        f"```Error creating bill. Please use command '.createbill <name e.g. electric> ‹expiration e.g. 14> <limit e.g. 50>'```"
+                    )
 
-                await message.channel.send(bills_monitor.format_message(resp))
-
-            if msg.startswith(".getmetabill"):
+            if msg.startswith(".billlimit"):
                 await message.delete()
 
-                resp = bills_monitor.get_meta(msg)
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 2:
+                    name, limit = components
+                    res = temp_monitor.modify_limit(name, limit)
+                else:
+                    res = 400
 
-                if resp == 404:
+                if res == 200:
                     await message.channel.send(
-                        "Bill information provided was invalid. - RELAB"
+                        f"```Modified {name.title()} bill to £{limit}```"
                     )
-                    return
+                elif res == 204:
+                    await message.channel.send(
+                        f"```Bill {name.title()} does not exists, please create using '.createbill' first.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Error modifying limit. Please use command '.billlimit <name e.g. electric> <limit e.g. 50>'```"
+                    )
 
-                await message.channel.send(bills_monitor.format_message(resp))
+            if msg.startswith(".billexpiration"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 2:
+                    name, limit = components
+                    res = temp_monitor.modify_expiration(name, limit)
+                else:
+                    res = 400
+
+                if res == 200:
+                    await message.channel.send(
+                        f"```Modified {name.title()} expiration, now indefinitely due on {due_date(expiration)}```"
+                    )
+                elif res == 204:
+                    await message.channel.send(
+                        f"```Bill {name.title()} does not exists, please create using '.createbill' first.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Error modifying expiration. Please use command '.billexpiration <name e.g. electric> <expiration e.g. 17>'```"
+                    )
+
+            if msg.startswith(".retrievebill"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 1:
+                    name = components[0]
+                    bill = temp_monitor.get(name)
+                else:
+                    bill = None
+
+                if bill is not None:
+                    await message.channel.send(
+                        f"```{name.title()} is payable on the {due_date(bill['expiration'])} for the amount £{bill['limit']}.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```{name.title()} was not retrievable, does it exist? Please use command '.retrievebill <name e.g. rent>'.```"
+                    )
+
+            if msg.startswith(".deletebill"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 1:
+                    name = components[0]
+                    res = temp_monitor.delete(name)
+
+                    if res == 200:
+                        await message.channel.send(
+                            f"```Bill {name.title()} was deleted.```"
+                        )
+                        return None
+
+                await message.channel.send(
+                    f"```Error deleting bill {name.title()}. Please use command '.deletebill <name e.g. rent>'.```"
+                )
+
+            if msg.startswith(".deleteallbills"):
+                await message.delete()
+
+                outcome = temp_monitor.delete_all
+
+                comms = ["```Bills Information:"]
+                comms.append(
+                    f"Date [{hand_time.format_a_day(datetime.now().day)}] | Request ID [#{str(uuid4().hex[:10])}]\n"
+                )
+
+                comms.append(
+                    f"        - Successful bills deletion: {', '.join(outcome['deleted'])}"
+                )
+                comms.append(
+                    f"        - Failed bills deletion: {', '.join(outcome['failed'])}"
+                )
+
+                await message.channel.send("\n".join(comms) + "```")
 
             if msg.startswith(".bills"):
                 await message.delete()
 
-                resp = bills_monitor.get_all()
-                for msg_res in resp:
-                    await message.channel.send(bills_monitor.format_message(msg_res))
+                bills = temp_monitor.get_all
 
-            if msg.startswith(".delbill"):
-                await message.delete()
-                resp = bills_monitor.delete(msg)
+                comms = ["```Bills Information:"]
+                comms.append(
+                    f"Date [{hand_time.format_a_day(datetime.now().day)}] | Request ID [#{str(uuid4().hex[:10])}]\n"
+                )
 
-                if resp == 200:
-                    await message.channel.send("Bill data has been deleted. - RELAB")
-                elif resp == 404:
-                    await message.channel.send("Error deleting bill data. - RELAB")
+                if len(bills) == 0:
+                    comms.append("        - No bills")
 
-            if msg.startswith(".delmetabill"):
-                await message.delete()
-                resp = bills_monitor.delete_meta(msg)
+                for bill in bills:
+                    meta = bills[bill]
+                    comms.append(
+                        f"        - {bill.title()} is payable on the {due_date(meta['expiration'])} for the amount £{meta['limit']}."
+                    )
 
-                if resp == 200:
-                    await message.channel.send("Bill data has been deleted. - RELAB")
-                elif resp == 404:
-                    await message.channel.send("Error deleting bill data. - RELAB")
+                await message.channel.send("\n".join(comms) + "```")
 
             if msg.startswith(".registersubscription"):
                 await message.delete()
@@ -766,28 +869,6 @@ async def on_message(message):
                         await message.channel.send(
                             f"```Your {name} budget has not expired.```"
                         )
-
-            if msg.startswith(".helpbudget"):
-                await message.delete()
-                commands = {
-                    "budget": [
-                        "**.createbudget** <name e.g. coffee> <expiration e.g. 13> <limit e.g 50>",
-                        "**.budgetlimit** <name e.g. coffee> <limit e.g 50>",
-                        "**.budgetexpiration** <name e.g. coffee> <expiration e.g. 13>",
-                        "**.getbudget** <name e.g. coffee>",
-                        "**.budgets**",
-                        "**.setthreshold** <threshold e.g. 7.50>",
-                        "**.spentbudget** <name e.g. coffee> <spending e.g. 12.40>",
-                        "**.deletebudget** <name e.g. coffee>",
-                        "**.archivebudget** <name e.g. coffee>",
-                        "**.spendingbudget**",
-                        "**.resetbudgetarchive**",
-                        "**.helpbudget**",
-                    ]
-                }
-
-                for command in commands["budget"]:
-                    await message.channel.send(command)
 
             if msg.startswith(".resetbudgetarchive"):
                 await message.delete()
