@@ -45,7 +45,7 @@ class BudgetHandler:
                     "limit": float(limit),
                     "spending": 0.00,
                 }
-            except IndexError:
+            except (IndexError, ValueError):
                 return 404
             else:
                 self._datastore.overwrite_nested(
