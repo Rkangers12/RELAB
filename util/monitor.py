@@ -3,181 +3,100 @@ from util.handle_times import HandleTimes
 
 
 class Monitor:
-    def __init__(self, monitor, db_key, datastore=None):
+    def __init__(self, monitor, datastore=None):
 
         self._monitor = monitor
-        self._key = db_key
         self._datastore = datastore or Handler()
-        self._ht = HandleTimes()
+        self._handletime = HandleTimes()
 
-        if self._datastore.get_value(self._key) is None:
-            self._datastore.overwrite(db_key=self._key, db_value={})
+        if self._datastore.get_value(self._monitor) is None:
+            self._datastore.overwrite(db_key=self._monitor, db_value={})
 
-    # class getters and setters
-    @property
-    def get_data(self):
-        """get the data for specified key from database"""
+    def check_exists(self, name):
+        """check if the object already exists"""
 
-        return self._datastore.get_value(self._key, {})
+        if name in self.get_all:
+            return True
 
-    def store_data(self, mdict, data, meta_key):
-        """store the value relating to the metadata of the monitor"""
+    def create(self, name, expiration, limit):
+        """store the object within the database"""
 
-        self._datastore.overwrite_nested(
-            keys_list=[self._key, data],
-            last_key=meta_key,
-            db_value=mdict.get(meta_key),
-        )
-
-    # class helper methods
-    def sort_message_content(self, content):
-        """sort the content message to retrieve the relevant information"""
-
-        content_listed = content.lower().split(":")[1:]
-        content_dict = {}
-
-        for obj_string in content_listed:
+        if not self.check_exists(name):
             try:
-                obj_string = obj_string.split("=")
-                content_dict[obj_string[0]] = obj_string[1]
-            except IndexError:
-                pass
+                obj = {
+                    "expiration": min(31, int(expiration)),
+                    "limit": float(limit),
+                }
+            except (IndexError, ValueError):
+                return 404
+            else:
+                self._datastore.overwrite_nested([self._monitor], name, obj)
+                return 200
 
-        return content_dict
+        return 201
 
-    def format_message(self, data):
-        """format the retrieved data into a message for users"""
+    def modify_limit(self, name, limit):
+        """change the object limit to new value"""
 
-        dday = data.get("debit_day", False)
-        md_day = True if data.get("debit_day") is not None else False
-        md_exp = True if data.get("expense") is not None else False
-
-        obj = "**{}** ".format(data.get(self._monitor)).title()
-        obj_day = "is payable on the **{}{}** ".format(dday, self._ht.day_suffix(dday))
-        obj_exp = "for the amount £**{}**".format(data.get("expense"))
-
-        return obj + (obj_day if md_day else "") + (obj_exp if md_exp else "") + "."
-
-    # class functional methods
-    def set(self, content, pdict=None):
-        """set the data for the specified monitor"""
-
-        mdict = pdict or self.sort_message_content(content)
-
-        if self._monitor not in mdict.keys():
-            return 404
-
-        if (mdict.get("debit_day") and mdict.get("expense")) is not None:
+        if self.check_exists(name):
             try:
-                mdict["debit_day"] = min(31, int(mdict["debit_day"]))
-                mdict["expense"] = float(mdict["expense"])
+                self._datastore.overwrite_nested(
+                    [self._monitor, name], "limit", float(limit)
+                )
             except ValueError:
                 return 404
-
-            monitor_val = mdict.pop(self._monitor)
-
-            for meta_key in mdict:
-                self.store_data(mdict, monitor_val, meta_key)
 
             return 200
 
-        return 404
+        return 204
 
-    def update(self, content, pdict=None):
-        """update the data for the specific monitor"""
+    def modify_expiration(self, name, expiration):
+        """change the object expiration to new value"""
 
-        mdict = pdict or self.sort_message_content(content)
-        monitor = self.get_data
-
-        if self._monitor not in mdict.keys() or mdict.get(self._monitor) not in monitor:
-            return 404
-
-        if mdict.get("debit_day") is not None:
+        if self.check_exists(name):
             try:
-                mdict["debit_day"] = min(31, int(mdict["debit_day"]))
+                exp = min(31, int(expiration))
+                self._datastore.overwrite_nested(
+                    [self._monitor, name], "expiration", exp
+                )
             except ValueError:
                 return 404
 
-        if mdict.get("expense") is not None:
-            try:
-                mdict["expense"] = float(mdict["expense"])
-            except ValueError:
-                return 404
+            return 200
 
-        monitor_val = mdict.pop(self._monitor)
+        return 204
 
-        for meta_key in mdict:
-            self.store_data(mdict, monitor_val, meta_key)
+    def get(self, name):
+        """get the object data from the database"""
 
-        return 200
+        return self._datastore.get_nested_value([self._monitor, name])
 
-    def get(self, content):
-        """get the individual data within provided monitor from database"""
-
-        mdict = self.sort_message_content(content)
-        monitor = self.get_data
-
-        if mdict.get(self._monitor) not in monitor or self._monitor not in mdict.keys():
-            return 404
-
-        mdict = {self._monitor: mdict.pop(self._monitor)}
-
-        return mdict | self._datastore.get_nested_value(
-            [self._key, mdict[self._monitor]]
-        )
-
-    def get_meta(self, content, pdict=None):
-        """get the individual metadata for provided monitor from database"""
-
-        mdict = pdict or self.sort_message_content(content)
-        monitor = self.get_data
-
-        if mdict.get(self._monitor) not in monitor or self._monitor not in mdict.keys():
-            return 404
-
-        if mdict.get("metadata") not in ["debit_day", "expense"]:
-            return 404
-
-        mdict[mdict.pop("metadata")] = self._datastore.get_nested_value(
-            [self._key, mdict[self._monitor], mdict["metadata"]]
-        )
-
-        return mdict
-
+    @property
     def get_all(self):
-        """get all records for provided monitor within database"""
+        """get all of object within the database"""
 
-        monitor_records = self.get_data
-        records = []
+        return self._datastore.get_nested_value([self._monitor])
 
-        for record in monitor_records:
-            record_info = monitor_records.get(record, {})
-            record_info[self._monitor] = record
-            records.append(record_info)
+    def delete(self, name):
+        """delete the object from the database"""
 
-        return records
+        if self.check_exists(name):
+            self._datastore.delete_nested([self._monitor], name)
+            return 200
+        else:
+            return 201
 
-    def delete(self, content):
-        """delete a record for monitor stored within the database"""
+    @property
+    def delete_all(self):
+        """delete all the objects within the database"""
 
-        mdict = self.sort_message_content(content)
+        names = self.get_all.keys()
+        outcome = {"deleted": [], "failed": []}
 
-        res = self._datastore.delete_nested(
-            keys_list=[self._key], last_key=mdict.get(self._monitor)
-        )
+        for name in names:
+            if self.delete(name) == 200:
+                outcome["deleted"].append(name)
+            else:
+                outcome["failed"].append(name)
 
-        return 200 if res is not None else 404
-
-    def delete_meta(self, content, pdict=None):
-        """delete the meta key for monitor stored within the database"""
-
-        mdict = pdict or self.sort_message_content(content)
-        res = None
-
-        if mdict.get("metadata") not in ["debit_day", "expense"]:
-            res = self._datastore.delete_nested(
-                keys_list=[self._key, mdict.get(self._monitor)],
-                last_key=mdict.get("metadata"),
-            )
-
-        return 200 if res is not None else 404
+        return outcome

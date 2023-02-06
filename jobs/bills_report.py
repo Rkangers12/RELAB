@@ -13,7 +13,7 @@ class BillsReport:
 
         self._datastore = Handler()
         self._ht = HandleTimes()
-        self._bm = Monitor("bill", "billsData", datastore=self._datastore)
+        self._bm = Monitor("bill", datastore=self._datastore)
 
         self._channel_id = channel_id
         self._intents = intents or discord.Intents.all()
@@ -26,36 +26,29 @@ class BillsReport:
 
         channel = self._client.get_channel(self._channel_id)
 
-        bills = self._bm.get_data
+        bills = self._bm.get_all
         for bill in bills:
 
-            bd = self._ht.format_a_day(
-                self._datastore.get_nested_value(["billsData", bill, "debit_day"])
-            )
-            be = self._datastore.get_nested_value(["billsData", bill, "expense"])
+            meta = self._datastore.get_nested_value(["bill", bill])
+            expiration = self._ht.format_a_day(meta["expiration"], True, False)
+            limit = meta["limit"]
 
-            bill_day_ts = self._ht.date_to_ts(bd)
+            bill_day_ts = self._ht.date_to_ts(expiration)
             now = self._ht.current_timestamp()
 
             if bill_day_ts - 86400 * 3 < now < bill_day_ts - 86400 * 2.7:
                 await channel.send(
-                    "REMINDER: Your **£{}** **{}** bill is due in 3 days, **{}**.".format(
-                        be, bill.title(), bd
-                    )
+                    f"```REMINDER: Your £{limit} {bill.title()} bill is due in 3 days, {expiration}.```"
                 )
 
             if bill_day_ts - 86400 * 1 < now < bill_day_ts - 86400 * 0.7:
                 await channel.send(
-                    "REMINDER: Your **£{}** **{}** bill is due in 1 day, **{}**.".format(
-                        be, bill.title(), bd
-                    )
+                    f"```REMINDER: Your £{limit} {bill.title()} bill is due in 1 day, {expiration}.```"
                 )
 
             if bill_day_ts < now < bill_day_ts + 86400:
                 await channel.send(
-                    "£**{}** for **{}** bill payment made today. - RELAB".format(
-                        be, bill.title()
-                    )
+                    f"```Payment of £{limit} made towards {bill.title()} today.```"
                 )
 
     @tasks.loop(seconds=600)  # TESTING ADJUSTABLE

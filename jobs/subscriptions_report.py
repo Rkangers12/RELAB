@@ -16,9 +16,7 @@ class SubscriptionsReport:
 
         self._datastore = Handler()
         self._ht = HandleTimes()
-        self._sm = SubscriptionsMonitor(
-            "subscription", self._KEY, datastore=self._datastore
-        )
+        self._sm = SubscriptionsMonitor("subscription", datastore=self._datastore)
 
         self._channel_id = channel_id
         self._intents = intents or discord.Intents.all()
@@ -31,43 +29,35 @@ class SubscriptionsReport:
 
         channel = self._client.get_channel(self._channel_id)
 
-        subscriptions = self._sm.get_data
+        subscriptions = self._sm.get_all
         for sub in subscriptions:
 
-            if not self._sm.subscription_active(sub):
+            if not self._sm.active(sub):
                 continue
 
-            print(self._sm.subscription_active(sub), sub)
-            sd = self._ht.format_a_day(
-                self._datastore.get_nested_value([self._KEY, sub, "debit_day"])
-            )
-            se = self._datastore.get_nested_value([self._KEY, sub, "expense"])
+            meta = self._datastore.get_nested_value(["subscription", sub])
+            expiration = self._ht.format_a_day(meta["expiration"], True, False)
+            limit = meta["limit"]
 
-            sub_day_ts = self._ht.date_to_ts(sd)
+            sub_day_ts = self._ht.date_to_ts(expiration)
             now = self._ht.current_timestamp()
 
             if sub_day_ts - 86400 * 3 < now < sub_day_ts - 86400 * 2.7:
                 await channel.send(
-                    "REMINDER: Your **£{}** **{}** subscription is due in 3 days, **{}**.".format(
-                        se, sub.title(), sd
-                    )
+                    f"```REMINDER: Your £{limit} {sub.title()} subscription is due in 3 days, {expiration}.```"
                 )
 
             if sub_day_ts - 86400 * 1 < now < sub_day_ts - 86400 * 0.7:
                 await channel.send(
-                    "REMINDER: Your **£{}** **{}** subscription is due in 1 day, **{}**.".format(
-                        se, sub.title(), sd
-                    )
+                    f"```REMINDER: Your £{limit} {sub.title()} subscription is due in 1 day, {expiration}.```"
                 )
 
             if sub_day_ts < now < sub_day_ts + 86400:
                 await channel.send(
-                    "£**{}** for **{}** subscription payment made today. - RELAB".format(
-                        se, sub.title()
-                    )
+                    f"```Payment of £{limit} made on your {sub.title()} subscription today.```"
                 )
 
-    @tasks.loop(seconds=600)  # TESTING ADJUSTABLE
+    @tasks.loop(seconds=600)
     async def subscription_reporter(self):
 
         now = datetime.now()
@@ -97,4 +87,4 @@ class SubscriptionsReport:
             # functionality to wait till midnight
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
             seconds_until_midnight = (midnight - now).total_seconds()
-            await asyncio.sleep(seconds_until_midnight)
+            await asyncio.sleep(seconds_until_midnight)  # TESTING ADJUSTABLE
