@@ -21,8 +21,6 @@ from util.handle_times import HandleTimes
 from util.monitor import Monitor
 from util.monitor_subscriptions import SubscriptionsMonitor
 from util.session_tracker import SessionTrack
-from util.temp_monitor import Tempy
-from util.temp_subscriptions import SubscriptionsTempy
 
 
 load_dotenv()
@@ -41,12 +39,8 @@ sesscomms = SessionCommands(
 inc_coms = IncomeCommands(datastore=datastore)
 
 budget_handler = BudgetHandler(datastore=datastore)
-temp_monitor = Tempy("bill", datastore=datastore)
-temp_subs = SubscriptionsTempy("subscription", datastore=datastore)
-bills_monitor = Monitor("bill", "billsData", datastore=datastore)
-subs_monitor = SubscriptionsMonitor(
-    "subscription", "subscriptionsData", datastore=datastore
-)
+bills_monitor = Monitor("bill", datastore=datastore)
+subs_monitor = SubscriptionsMonitor("subscription", datastore=datastore)
 
 
 @client.event
@@ -87,17 +81,17 @@ async def on_ready():
         billTask.bill_reporter.start()  # if the task is not already running, start it.
         print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
 
-    subscriptionTask = SubscriptionsReport(
-        channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
-    )
+    # subscriptionTask = SubscriptionsReport(
+    #     channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
+    # )
 
-    if not subscriptionTask.subscription_reporter.is_running():
-        subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
-        print(
-            "Booted Background Process #4: Subscription Reporter - {0.user}".format(
-                client
-            )
-        )
+    # if not subscriptionTask.subscription_reporter.is_running():
+    #     subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
+    #     print(
+    #         "Booted Background Process #4: Subscription Reporter - {0.user}".format(
+    #             client
+    #         )
+    #     )
 
     budgetTask = BudgetsReport(
         channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
@@ -403,7 +397,7 @@ async def on_message(message):
             def due_date(day, weekday=True):
                 """convert a day integer in to a date"""
 
-                return hand_time.format_a_day(int(day), weekday=weekday)
+                return hand_time.format_a_day(int(day), weekday=weekday, income=False)
 
             if msg.startswith(".createbill"):
                 await message.delete()
@@ -411,7 +405,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 3:
                     name, expiration, limit = components
-                    res = temp_monitor.create(name, expiration, limit)
+                    res = bills_monitor.create(name, expiration, limit)
                 else:
                     res = 400
 
@@ -434,7 +428,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, limit = components
-                    res = temp_monitor.modify_limit(name, limit)
+                    res = bills_monitor.modify_limit(name, limit)
                 else:
                     res = 400
 
@@ -456,14 +450,14 @@ async def on_message(message):
 
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
-                    name, limit = components
-                    res = temp_monitor.modify_expiration(name, limit)
+                    name, expiration = components
+                    res = bills_monitor.modify_expiration(name, expiration)
                 else:
                     res = 400
 
                 if res == 200:
                     await message.channel.send(
-                        f"```Modified {name} subscription, now due on {due_date(expiration)}```"
+                        f"```Modified {name} bill, now due on {due_date(expiration)}```"
                     )
                 elif res == 204:
                     await message.channel.send(
@@ -480,7 +474,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    bill = temp_monitor.get(name)
+                    bill = bills_monitor.get(name)
                 else:
                     bill = None
 
@@ -499,7 +493,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = temp_monitor.delete(name)
+                    res = bills_monitor.delete(name)
 
                     if res == 200:
                         await message.channel.send(f"```Bill {name} was deleted.```")
@@ -512,7 +506,7 @@ async def on_message(message):
             if msg.startswith(".deleteallbills"):
                 await message.delete()
 
-                outcome = temp_monitor.delete_all
+                outcome = bills_monitor.delete_all
 
                 comms = ["```Bills Information:"]
                 comms.append(
@@ -531,7 +525,7 @@ async def on_message(message):
             if msg.startswith(".bills"):
                 await message.delete()
 
-                bills = temp_monitor.get_all
+                bills = bills_monitor.get_all
 
                 comms = ["```Bills Information:"]
                 comms.append(
@@ -555,7 +549,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 3:
                     name, expiration, limit = components
-                    res = temp_subs.extend_create(name, expiration, limit)
+                    res = subs_monitor.extend_create(name, expiration, limit)
                 else:
                     res = 400
 
@@ -578,7 +572,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, limit = components
-                    res = temp_subs.modify_limit(name, limit)
+                    res = subs_monitor.modify_limit(name, limit)
                 else:
                     res = 400
 
@@ -600,8 +594,8 @@ async def on_message(message):
 
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
-                    name, limit = components
-                    res = temp_subs.modify_expiration(name, limit)
+                    name, expiration = components
+                    res = subs_monitor.modify_expiration(name, expiration)
                 else:
                     res = 400
 
@@ -624,7 +618,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    subscription = temp_subs.get(name)
+                    subscription = subs_monitor.get(name)
                 else:
                     subscription = None
 
@@ -643,7 +637,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = temp_subs.delete(name)
+                    res = subs_monitor.delete(name)
 
                     if res == 200:
                         await message.channel.send(
@@ -658,7 +652,7 @@ async def on_message(message):
             if msg.startswith(".deleteallsubs"):
                 await message.delete()
 
-                outcome = temp_subs.delete_all
+                outcome = subs_monitor.delete_all
 
                 comms = ["```Subscriptions Information:"]
                 comms.append(
@@ -677,7 +671,7 @@ async def on_message(message):
             if msg.startswith(".subscriptions"):
                 await message.delete()
 
-                subscriptions = temp_subs.get_all
+                subscriptions = subs_monitor.get_all
 
                 comms = ["```Subscriptions Information:"]
                 comms.append(
@@ -701,7 +695,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = temp_subs.toggle_subscription(name)
+                    res = subs_monitor.toggle_subscription(name)
 
                     if res != 404:
                         await message.channel.send(
@@ -719,7 +713,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = temp_subs.active(name)
+                    res = subs_monitor.active(name)
 
                     if res is not None:
                         await message.channel.send(

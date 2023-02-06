@@ -83,7 +83,7 @@ class HandleTimes:
         if period == "week":
             return 7
 
-    def format_a_day(self, day=None, weekday=False):
+    def format_a_day(self, day=None, weekday=False, income=True):
         """format a given day into a datetime object into a date format"""
         now = datetime.now()
         day = day or now.day
@@ -105,9 +105,15 @@ class HandleTimes:
             sel_data_num = date_period.weekday()
 
             if sel_data_num > 4 and (day - (sel_data_num - 4)) > 0:
-                day = day - (sel_data_num - 4)
+                day = day - (sel_data_num - 4) if income else day + (7 - sel_data_num)
             elif sel_data_num > 4:
-                day = day + (6 - sel_data_num)
+                day = day - (7 - sel_data_num) if income else day + (7 - sel_data_num)
+
+            if day < 0:
+                month = now.month
+                lim = self.calculate_days(month=(month), period="month")[1]
+                day = lim - abs(day)
+
             date_period = date(year=now.year, month=(month), day=day)
 
         return date_period
