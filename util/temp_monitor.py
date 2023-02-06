@@ -95,8 +95,8 @@ class Tempy:
 
         for name in names:
             if self.delete(name) == 200:
-                outcome["deleted"].append(name.title())
+                outcome["deleted"].append(name)
             else:
-                outcome["failed"].append(name.title())
+                outcome["failed"].append(name)
 
         return outcome

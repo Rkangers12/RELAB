@@ -22,6 +22,8 @@ from util.monitor import Monitor
 from util.monitor_subscriptions import SubscriptionsMonitor
 from util.session_tracker import SessionTrack
 from util.temp_monitor import Tempy
+from util.temp_subscriptions import SubscriptionsTempy
+
 
 load_dotenv()
 intents = discord.Intents.all()
@@ -40,6 +42,7 @@ inc_coms = IncomeCommands(datastore=datastore)
 
 budget_handler = BudgetHandler(datastore=datastore)
 temp_monitor = Tempy("bill", datastore=datastore)
+temp_subs = SubscriptionsTempy("subscription", datastore=datastore)
 bills_monitor = Monitor("bill", "billsData", datastore=datastore)
 subs_monitor = SubscriptionsMonitor(
     "subscription", "subscriptionsData", datastore=datastore
@@ -196,12 +199,31 @@ async def on_message(message):
                     "    .createbill <name e.g. rent> ‹exp e.g. 14> <limit e.g. 50>"
                 )
                 prompt.append("    .billlimit <name e.g. rent> <limit e.g. 50>")
-                prompt.append("    .billexpiration <name e.g. rent> <exp e.g. 1>")
+                prompt.append("    .billexpiration <name e.g. rent> <exp e.g. 13>")
                 prompt.append("    .retrievebill <name e.g. rent>")
                 prompt.append("    .bills")
                 prompt.append("    .deletebill <name e.g. rent>")
                 prompt.append("    .deleteallbills")
                 prompt.append("    .helpbills```")
+
+                await message.channel.send("\n".join(prompt))
+
+            if msg.startswith(".helpsubscriptions"):
+                await message.delete()
+
+                prompt = ["```Subscription Command Prompt Help:"]
+                prompt.append(
+                    "    .createsub <name e.g. AppleMusic> ‹exp e.g. 14> <limit e.g. 5.99>"
+                )
+                prompt.append("    .sublimit <name e.g. AppleMusic> <limit e.g. 5.99>")
+                prompt.append("    .subexp <name e.g. AppleMusic> <exp e.g. 13>")
+                prompt.append("    .retrievesub <name e.g. AppleMusic>")
+                prompt.append("    .subscriptions")
+                prompt.append("    .deletesub <name e.g. AppleMusic>")
+                prompt.append("    .deleteallsubs")
+                prompt.append("    .togglesubscription <name e.g. AppleMusic>")
+                prompt.append("    .activesub <name e.g. AppleMusic>")
+                prompt.append("    .helpsubscriptions```")
 
                 await message.channel.send("\n".join(prompt))
 
@@ -395,11 +417,11 @@ async def on_message(message):
 
                 if res == 200:
                     await message.channel.send(
-                        f"```Created {name.title()} bill of £{limit} due on {due_date(expiration)}```"
+                        f"```Created {name} bill of £{limit} due monthly from {due_date(expiration)}```"
                     )
                 elif res == 201:
                     await message.channel.send(
-                        f"```Bill {name.title()} already exists, please delete or modify it.```"
+                        f"```Bill {name} already exists, please delete or modify it.```"
                     )
                 else:
                     await message.channel.send(
@@ -418,11 +440,11 @@ async def on_message(message):
 
                 if res == 200:
                     await message.channel.send(
-                        f"```Modified {name.title()} bill to £{limit}```"
+                        f"```Modified {name} bill to £{limit}```"
                     )
                 elif res == 204:
                     await message.channel.send(
-                        f"```Bill {name.title()} does not exists, please create using '.createbill' first.```"
+                        f"```Bill {name} does not exists, please create using '.createbill' first.```"
                     )
                 else:
                     await message.channel.send(
@@ -441,11 +463,11 @@ async def on_message(message):
 
                 if res == 200:
                     await message.channel.send(
-                        f"```Modified {name.title()} expiration, now indefinitely due on {due_date(expiration)}```"
+                        f"```Modified {name} subscription, now due on {due_date(expiration)}```"
                     )
                 elif res == 204:
                     await message.channel.send(
-                        f"```Bill {name.title()} does not exists, please create using '.createbill' first.```"
+                        f"```Bill {name} does not exists, please create using '.createbill' first.```"
                     )
                 else:
                     await message.channel.send(
@@ -464,11 +486,11 @@ async def on_message(message):
 
                 if bill is not None:
                     await message.channel.send(
-                        f"```{name.title()} is payable on the {due_date(bill['expiration'])} for the amount £{bill['limit']}.```"
+                        f"```{name} is payable on the {due_date(bill['expiration'])} for the amount £{bill['limit']}.```"
                     )
                 else:
                     await message.channel.send(
-                        f"```{name.title()} was not retrievable, does it exist? Please use command '.retrievebill <name e.g. rent>'.```"
+                        f"```Bill was not retrievable, does it exist? Please use command '.retrievebill <name e.g. rent>'.```"
                     )
 
             if msg.startswith(".deletebill"):
@@ -480,13 +502,11 @@ async def on_message(message):
                     res = temp_monitor.delete(name)
 
                     if res == 200:
-                        await message.channel.send(
-                            f"```Bill {name.title()} was deleted.```"
-                        )
+                        await message.channel.send(f"```Bill {name} was deleted.```")
                         return None
 
                 await message.channel.send(
-                    f"```Error deleting bill {name.title()}. Please use command '.deletebill <name e.g. rent>'.```"
+                    f"```Error deleting bill. Please use command '.deletebill <name e.g. rent>'.```"
                 )
 
             if msg.startswith(".deleteallbills"):
@@ -524,110 +544,192 @@ async def on_message(message):
                 for bill in bills:
                     meta = bills[bill]
                     comms.append(
-                        f"        - {bill.title()} is payable on the {due_date(meta['expiration'])} for the amount £{meta['limit']}."
+                        f"        - {bill} is payable on the {due_date(meta['expiration'])} for the amount £{meta['limit']}."
                     )
 
                 await message.channel.send("\n".join(comms) + "```")
 
-            if msg.startswith(".registersubscription"):
-                await message.delete()
-                resp = subs_monitor.register(msg)
-
-                if resp == 200:
-                    await message.channel.send(
-                        "New subscription data has been registered. - RELAB"
-                    )
-                elif resp == 404:
-                    await message.channel.send(
-                        "Error registering subscription. - RELAB"
-                    )
-
-            if msg.startswith(".updatesubscription"):
-                await message.delete()
-                resp = subs_monitor.extend_update(msg)
-
-                if resp == 200:
-                    await message.channel.send("Subscription has been updated. - RELAB")
-                elif resp == 404:
-                    await message.channel.send("Error updating subscription. - RELAB")
-
-            if msg.startswith(".getsubscription"):
+            if msg.startswith(".createsub"):
                 await message.delete()
 
-                resp = subs_monitor.get(msg)
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 3:
+                    name, expiration, limit = components
+                    res = temp_subs.extend_create(name, expiration, limit)
+                else:
+                    res = 400
 
-                if resp == 404:
+                if res == 200:
                     await message.channel.send(
-                        "Subscription information provided was invalid. - RELAB"
+                        f"```Created {name} subscription of £{limit} due monthly on {due_date(expiration)}```"
                     )
-                    return
+                elif res == 201:
+                    await message.channel.send(
+                        f"```Subscription {name} already exists, please delete or modify it.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Error creating subscription. Please use command '.createsub <name e.g. AppleMusic> ‹expiration e.g. 14> <limit e.g. 50>'```"
+                    )
 
-                await message.channel.send(subs_monitor.format_message(resp))
-
-            if msg.startswith(".getmetasubscription"):
+            if msg.startswith(".sublimit"):
                 await message.delete()
 
-                resp = subs_monitor.extend_get_meta(msg)
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 2:
+                    name, limit = components
+                    res = temp_subs.modify_limit(name, limit)
+                else:
+                    res = 400
 
-                if resp == 404:
+                if res == 200:
                     await message.channel.send(
-                        "Subscription information provided was invalid. - RELAB"
+                        f"```Modified {name} subscription to £{limit}```"
                     )
-                    return
+                elif res == 204:
+                    await message.channel.send(
+                        f"```Subscription {name} does not exists, please create using '.createsub' first.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Error modifying limit. Please use command '.sublimit <name e.g. AppleMusic> <limit e.g. 50>'```"
+                    )
 
-                await message.channel.send(subs_monitor.format_message(resp))
+            if msg.startswith(".subexp"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 2:
+                    name, limit = components
+                    res = temp_subs.modify_expiration(name, limit)
+                else:
+                    res = 400
+
+                if res == 200:
+                    await message.channel.send(
+                        f"```Modified {name} subscription, now due on {due_date(expiration)}```"
+                    )
+                elif res == 204:
+                    await message.channel.send(
+                        f"```Subscription {name} does not exists, please create using '.createsub' first.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Error modifying expiration. Please use command '.subexp <name e.g. AppleMusic> <expiration e.g. 17>'```"
+                    )
+
+            if msg.startswith(".retrievesub"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 1:
+                    name = components[0]
+                    subscription = temp_subs.get(name)
+                else:
+                    subscription = None
+
+                if subscription is not None:
+                    await message.channel.send(
+                        f"```{name} is payable on the {due_date(subscription['expiration'])} for the amount £{subscription['limit']}.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Subscription was not retrievable, does it exist? Please use command '.retrievesub <name e.g. AppleMusic>'.```"
+                    )
+
+            if msg.startswith(".deletesub"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 1:
+                    name = components[0]
+                    res = temp_subs.delete(name)
+
+                    if res == 200:
+                        await message.channel.send(
+                            f"```Subscription {name} was deleted.```"
+                        )
+                        return None
+
+                await message.channel.send(
+                    f"```Error deleting subscription. Please use command '.deletesub <name e.g. rent>'.```"
+                )
+
+            if msg.startswith(".deleteallsubs"):
+                await message.delete()
+
+                outcome = temp_subs.delete_all
+
+                comms = ["```Subscriptions Information:"]
+                comms.append(
+                    f"Date [{hand_time.format_a_day(datetime.now().day)}] | Request ID [#{str(uuid4().hex[:10])}]\n"
+                )
+
+                comms.append(
+                    f"        - Successful subscriptions deletion: {', '.join(outcome['deleted'])}"
+                )
+                comms.append(
+                    f"        - Failed subscriptions deletion: {', '.join(outcome['failed'])}"
+                )
+
+                await message.channel.send("\n".join(comms) + "```")
 
             if msg.startswith(".subscriptions"):
                 await message.delete()
 
-                resp = subs_monitor.get_all()
-                for msg_res in resp:
-                    await message.channel.send(subs_monitor.format_message(msg_res))
+                subscriptions = temp_subs.get_all
 
-            if msg.startswith(".deletesubscription"):
-                await message.delete()
-                resp = subs_monitor.delete(msg)
+                comms = ["```Subscriptions Information:"]
+                comms.append(
+                    f"Date [{hand_time.format_a_day(datetime.now().day)}] | Request ID [#{str(uuid4().hex[:10])}]\n"
+                )
 
-                if resp == 200:
-                    await message.channel.send("Subscription has been deleted. - RELAB")
-                elif resp == 404:
-                    await message.channel.send("Error deleting subscripton. - RELAB")
+                if len(subscriptions) == 0:
+                    comms.append("        - No subscriptions")
 
-            if msg.startswith(".delmetasub"):
-                await message.delete()
-                resp = subs_monitor.extend_delete_meta(msg)
-
-                if resp == 200:
-                    await message.channel.send(
-                        "Subscription metadata has been deleted. - RELAB"
+                for subscription in subscriptions:
+                    meta = subscriptions[subscription]
+                    comms.append(
+                        f"        - [{'Active' if meta['active'] else 'Inactive'}] {subscription} is payable on the {due_date(meta['expiration'])} for the amount £{meta['limit']}."
                     )
-                elif resp == 404:
-                    await message.channel.send(
-                        "Error deleting subscripton metadata. - RELAB"
-                    )
+
+                await message.channel.send("\n".join(comms) + "```")
 
             if msg.startswith(".togglesubscription"):
                 await message.delete()
-                resp = subs_monitor.pause(msg)
 
-                if resp.get("statusCode") == 404:
-                    await message.channel.send(
-                        "Error toggling subscription status - RELAB"
-                    )
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 1:
+                    name = components[0]
+                    res = temp_subs.toggle_subscription(name)
 
-                if resp.get("statusCode") == 200:
-                    if resp.get("active"):
+                    if res != 404:
                         await message.channel.send(
-                            "**{} has been switched on.**".format(
-                                resp.get("subscription")
-                            )
+                            f"```{name} has been switched {'off' if res else 'on'}.```"
                         )
-                    else:
+                        return None
+
+                await message.channel.send(
+                    f"```Error toggling provided subscription status.```"
+                )
+
+            if msg.startswith(".activesub"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 1:
+                    name = components[0]
+                    res = temp_subs.active(name)
+
+                    if res is not None:
                         await message.channel.send(
-                            "**{} has been switched off.**".format(
-                                resp.get("subscription")
-                            )
+                            f"```Subscription {name} is currently {'active' if res else 'inactive'}```"
                         )
+                        return None
+
+                await message.channel.send(
+                    "```Error. Please check if the subscription exists.```"
+                )
 
             if msg.startswith(".createbudget"):
                 await message.delete()
