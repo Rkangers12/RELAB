@@ -106,13 +106,11 @@ async def on_ready():
 
 async def snapshot(message):
     """take a snapshot of the database"""
-
     await message.delete()
+
     datastore.snapshot()
     await message.channel.send(
-        "**[{}] - Database backed up to secure location.**".format(
-            hand_time.format_a_day()
-        )
+        f"```[{hand_time.format_a_day()}] - Database backed up to secure location.```"
     )
 
 
@@ -128,10 +126,10 @@ async def power(message):
 
     if power:
         datastore.overwrite_nested([setting], "power", False)
-        await message.channel.send("**RELAB has been switched off.**")
+        await message.channel.send("```RELAB has been switched off.```")
     else:
         datastore.overwrite_nested([setting], "power", True)
-        await message.channel.send("**RELAB has been switched on.**")
+        await message.channel.send("```RELAB has been switched on.```")
 
 
 @client.event
@@ -248,7 +246,7 @@ async def on_message(message):
 
         if message.channel.id == int(os.getenv("BOT_HELPER")):
             if msg.startswith(".channels"):
-                await message.channel.send("Success")
+                await message.channel.send("```Success```")
 
                 for channel in client.get_all_channels():
                     print(channel.id, channel.name)
@@ -271,80 +269,79 @@ async def on_message(message):
                 resp = inc_coms.set_payroll(msg, "grossSalary")
 
                 if resp == 200:
-                    await message.channel.send(
-                        "**Gross Salary** details updated. - RELAB"
-                    )
+                    await message.channel.send("```Gross Salary details updated.```")
                 elif resp == 404:
-                    await message.channel.send(
-                        "Please provide appropriate payroll data."
-                    )
+                    await message.channel.send("```Please provide payroll data.```")
 
             if msg.startswith(".getsalary"):
                 await message.delete()
-                comms = "Payroll details by RELAB: \n    - Gross Salary: **£{}**"
-                await message.channel.send(comms.format(inc_coms.get("grossSalary")))
+
+                await message.channel.send(
+                    f"```Payroll details by RELAB: \n    - Gross Salary: £{inc_coms.get('grossSalary')}```"
+                )
 
             if msg.startswith(".setnotionals"):
                 await message.delete()
                 resp = inc_coms.set_payroll(msg, "notionals")
 
                 if resp == 200:
-                    await message.channel.send("**Notionals** details updated. - RELAB")
+                    await message.channel.send("```Notionals details updated.```")
                 elif resp == 404:
-                    await message.channel.send(
-                        "Please provide appropriate payroll data."
-                    )
+                    await message.channel.send("```Please provide payroll data.```")
 
             if msg.startswith(".getnotionals"):
                 await message.delete()
-                comms = "Payroll details by RELAB: \n    - Notionals: **£{}**"
-                await message.channel.send(comms.format(inc_coms.get("notionals")))
+
+                await message.channel.send(
+                    f"```Payroll details by RELAB: \n    - Notionals: £{inc_coms.get('notionals')}```"
+                )
 
             if msg.startswith(".setpaydate"):
                 await message.delete()
+
                 resp = inc_coms.set_payroll(msg, "payDay")
 
                 if resp == 200:
-                    await message.channel.send("**Pay Date** details updated. - RELAB")
+                    await message.channel.send("```Pay Date details updated.```")
                 elif resp == 404:
-                    await message.channel.send(
-                        "Please provide appropriate payroll data."
-                    )
+                    await message.channel.send("```Please provide payroll data.```")
 
             if msg.startswith(".getpaydate"):
                 await message.delete()
-                comms = "Payroll details by RELAB: \n    - Next Pay Day: **{}**"
+
+                paydate = hand_time.format_a_day(
+                    int(inc_coms.get("payDay")), weekday=True
+                )
+
                 await message.channel.send(
-                    comms.format(
-                        hand_time.format_a_day(
-                            int(inc_coms.get("payDay")), weekday=True
-                        )
-                    )
+                    f"```Payroll details by RELAB: \n    - Next Pay Day: {paydate}```"
                 )
 
             if msg.startswith(".togglestudentloan"):
                 await message.delete()
-                comms = "Student Loan now **{}**. - RELAB"
-                await message.channel.send(comms.format(inc_coms.sl_toggle("activeSL")))
+
+                await message.channel.send(
+                    f"```Student Loan now {inc_coms.sl_toggle('activeSL')}.```"
+                )
 
             if msg.startswith(".checkstudentloan"):
                 await message.delete()
-                comms = "Payroll details by RELAB: \n    - Student Loan: **{}**"
+
+                slt = "active" if inc_coms.sl_check("activeSL") else "inactive"
+
                 await message.channel.send(
-                    comms.format(
-                        "active" if inc_coms.sl_check("activeSL") else "inactive"
-                    )
+                    f"```Payroll details by RELAB: \n    - Student Loan: {slt}```"
                 )
 
             if msg.startswith(".takehome"):
                 await message.delete()
+
+                takehome = inc_coms.get_takehome()
+                paydate = hand_time.format_a_day(
+                    int(inc_coms.get("payDay")), weekday=True
+                )
                 await message.channel.send(
-                    "Your income after tax is **£{}** (**{}**). - RELAB".format(
-                        inc_coms.get_takehome(),
-                        hand_time.format_a_day(
-                            int(inc_coms.get("payDay")), weekday=True
-                        ),
-                    )
+                    f"```Your income after tax is £{takehome} ({paydate}).```"
                 )
 
             if msg.startswith(".payrollsettings"):
@@ -357,7 +354,7 @@ async def on_message(message):
                     f"    - Next Pay Day: {hand_time.format_a_day(int(inc_coms.get('payDay')), weekday=True)}"
                 )
                 comms.append(
-                    f"    - Student Loan: {'active' if inc_coms.sl_check('activeSL') else 'inactive'}"
+                    f"    - Student Loan: {'active' if inc_coms.sl_check('activeSL') else 'inactive'}```"
                 )
 
                 await message.channel.send("\n".join(comms))
@@ -737,15 +734,15 @@ async def on_message(message):
 
                 if res == 200:
                     await message.channel.send(
-                        f"Created a **{name}** budget expiring **{hand_time.format_a_day(int(expiration))}** of **£{limit}**"
+                        f"```Created a {name} budget expiring {hand_time.format_a_day(int(expiration))} of £{limit}```"
                     )
                 elif res == 201:
                     await message.channel.send(
-                        f"Budget **{name}** already exists, please **delete** or **archive** it first."
+                        f"```Budget {name} already exists, please delete or archive it first.```"
                     )
                 else:
                     await message.channel.send(
-                        f"Error creating budget. Please use command: '**.createbudget <name e.g. coffee> <expiration e.g. 14> <limit e.g. 50>**'"
+                        f"```Error creating budget. Please use command: '.createbudget <name e.g. coffee> <expiration e.g. 14> <limit e.g. 50>'```"
                     )
 
             if msg.startswith(".budgetlimit"):
@@ -760,15 +757,15 @@ async def on_message(message):
 
                 if res == 200:
                     await message.channel.send(
-                        f"Modified **{name}** budget to £**{limit}**."
+                        f"```Modified {name} budget to £{limit}.```"
                     )
                 elif res == 204:
                     await message.channel.send(
-                        f"Budget **{name}** does not exist. Please create using **'.createbudget'** first."
+                        f"```Budget {name} does not exist. Please create using '.createbudget' first.```"
                     )
                 else:
                     await message.channel.send(
-                        f"Error modifying limit. Please use command: '**.budgetlimit <name e.g. coffee> <limit e.g. 50>**'"
+                        f"```Error modifying limit. Please use command: '.budgetlimit <name e.g. coffee> <limit e.g. 50>'```"
                     )
 
             if msg.startswith(".budgetexpiration"):
@@ -783,15 +780,15 @@ async def on_message(message):
 
                 if res == 200:
                     await message.channel.send(
-                        f"Modified **{name}** budget to **{hand_time.format_a_day(int(expiration))}**."
+                        f"```Modified {name} budget to {hand_time.format_a_day(int(expiration))}.```"
                     )
                 elif res == 204:
                     await message.channel.send(
-                        f"Budget **{name}** does not exist. Please create using **'.createbudget'** first."
+                        f"```Budget {name} does not exist. Please create using '.createbudget' first.```"
                     )
                 else:
                     await message.channel.send(
-                        f"Error modifying expiration. Please use command: '**.budgetexpiration <name e.g. coffee> <expiration e.g. 12>**'"
+                        f"```Error modifying expiration. Please use command: '.budgetexpiration <name e.g. coffee> <expiration e.g. 12>'```"
                     )
 
             if msg.startswith(".getbudget"):
@@ -805,12 +802,12 @@ async def on_message(message):
                     budget = budget_handler.get_budget(name)
                     if budget is not None:
                         await message.channel.send(
-                            f"You've spent **£{budget.get('spending')}** of your **£{budget.get('limit')}** {name} budget lasting till **{budget.get('expiration')}**."
+                            f"```You've spent £{budget.get('spending')} of your £{budget.get('limit')} {name} budget lasting till {budget.get('expiration')}.```"
                         )
 
                 if budget is None:
                     await message.channel.send(
-                        "Error retrieving budget, please use '**.getbudget <name e.g. coffee>**'"
+                        "```Error retrieving budget, please use '.getbudget <name e.g. coffee>'```"
                     )
 
             if msg.startswith(".budgets"):
@@ -820,7 +817,7 @@ async def on_message(message):
                 for budget in budgets:
                     meta = budgets[budget]
                     await message.channel.send(
-                        f"You've spent £**{meta.get('spending')}** of your £**{meta.get('limit')}**, **{budget}** budget lasting till **{meta.get('expiration')}**."
+                        f"```You've spent £{meta.get('spending')} of your £{meta.get('limit')}, {budget} budget lasting till {meta.get('expiration')}.```"
                     )
 
             if msg.startswith(".setthreshold"):
@@ -830,13 +827,13 @@ async def on_message(message):
                     val = float(msg.split(" ")[1])
                 except (IndexError, ValueError):
                     await message.channel.send(
-                        "Error modifying threshold, please use '**.setthreshold <value e.g. 10>**'."
+                        "```Error modifying threshold, please use '.setthreshold <value e.g. 10>'.```"
                     )
                 else:
                     budget_handler.set_threshold(val)
 
                     await message.channel.send(
-                        f"Updated budget **threshold level alert** to £**{val}** - RELAB"
+                        f"```Updated budget threshold level alert to £{val}.```"
                     )
 
             if msg.startswith(".getthreshold"):
@@ -844,7 +841,7 @@ async def on_message(message):
 
                 thres = budget_handler.get_threshold
                 await message.channel.send(
-                    f"Current budget **threshold level alert** is £**{thres}** - RELAB"
+                    f"```Current budget threshold level alert is £{thres}.```"
                 )
 
             if msg.startswith(".spentbudget"):
@@ -861,22 +858,22 @@ async def on_message(message):
 
                 if res != 201:
                     await message.channel.send(
-                        f"Recorded spending of **£{spending}** toward your '**{name}**' budget. "
-                        f"You've spent £**{budget.get('spending')}** of your £**{budget.get('limit')}** "
-                        f"**{name}** budget lasting till **{budget.get('expiration')}**."
+                        f"```Recorded spending of £{spending} toward your '{name}' budget. "
+                        f"You've spent £{budget.get('spending')} of your £{budget.get('limit')} "
+                        f"{name} budget lasting till {budget.get('expiration')}.```"
                     )
                     if res == 203:
                         await message.channel.send(
-                            f"**Balance expired**. You've reached your **{name}** budget."
+                            f"```Balance expired. You've reached your {name} budget.```"
                         )
                         budget_handler.archive_budget(name)
                     elif res == 204:
                         await message.channel.send(
-                            f"**Balance warning**. You've spent £**{budget.get('spending')}** of your £**{budget.get('limit')}** remaining **{name}** budget."
+                            f"```Balance warning. You've spent £{budget.get('spending')} of your £{budget.get('limit')} remaining {name} budget.```"
                         )
                 else:
                     await message.channel.send(
-                        "Error recording spending, please use '**.spentbudget <name e.g. coffee> <spending e.g. 12.50>**'"
+                        "```Error recording spending, please use '.spentbudget <name e.g. coffee> <spending e.g. 12.50>'```"
                     )
 
             if msg.startswith(".budgetbalance"):
@@ -886,18 +883,18 @@ async def on_message(message):
                     name = msg.split(" ")[1]
                 except IndexError:
                     await message.channel.send(
-                        "Error getting budget balance, please use '**.budgetbalance <name e.g. coffee>**'"
+                        "```Error getting budget balance, please use '.budgetbalance <name e.g. coffee>'```"
                     )
                 else:
                     try:
                         balance = max(0, budget_handler.get_remaining(name))
                     except TypeError:
                         await message.channel.send(
-                            "Error getting budget balance, please use '**.budgetbalance <name e.g. coffee>**'"
+                            "```Error getting budget balance, please use '.budgetbalance <name e.g. coffee>'```"
                         )
                     else:
                         await message.channel.send(
-                            f"Budget **{name}** has a remaining balance of £**{balance}** - RELAB."
+                            f"```Budget {name} has a remaining balance of £{balance}.```"
                         )
 
             if msg.startswith(".deletebudget"):
@@ -907,17 +904,17 @@ async def on_message(message):
                     name = msg.split(" ")[1]
                 except IndexError:
                     await message.channel.send(
-                        "Error deleting budget, please use '**.deletebudget <name e.g. coffee>**'"
+                        "```Error deleting budget, please use '.deletebudget <name e.g. coffee>'```"
                     )
                 else:
                     res = budget_handler.delete_budget(name)
                     if res == 200:
                         await message.channel.send(
-                            f"Budget **{name}** has been **deleted**. - RELAB."
+                            f"```Budget {name} has been deleted.```"
                         )
                     else:
                         await message.channel.send(
-                            f"Budget **{name}** doesn't exist, please provide an existing budget."
+                            f"```Budget {name} doesn't exist, please provide an existing budget.```"
                         )
 
             if msg.startswith(".archivebudget"):
@@ -927,24 +924,24 @@ async def on_message(message):
                     name = msg.split(" ")[1]
                 except IndexError:
                     await message.channel.send(
-                        "Error archiving budget, please use '**.archivebudget <name e.g. coffee>**'"
+                        "```Error archiving budget, please use '.archivebudget <name e.g. coffee>'```"
                     )
                 else:
                     res = budget_handler.archive_budget(name)
                     if res != 201:
                         await message.channel.send(
-                            f"Budget **{name}** has been **archived**. - RELAB"
+                            f"```Budget {name} has been archived.```"
                         )
                     else:
                         await message.channel.send(
-                            f"Budget **{name}** doesn't exist, please provide an existing budget."
+                            f"```Budget {name} doesn't exist, please provide an existing budget.```"
                         )
 
             if msg.startswith(".spendingbudget"):
                 await message.delete()
 
                 await message.channel.send(
-                    f"**Your spending across all active budgets is {budget_handler.budget_spending}. - RELAB**"
+                    f"```Your spending across all active budgets is {budget_handler.budget_spending}.```"
                 )
 
             if msg.startswith(".checkbudgetexp"):
@@ -953,23 +950,24 @@ async def on_message(message):
                 try:
                     name = msg.split(" ")[1]
                 except IndexError:
-                    await message.channel.send(
-                        "Error archiving budget, please use '**.archivebudget <name e.g. coffee>**'"
-                    )
+                    res = 404
                 else:
-                    if budget_handler.check_expired(name):
+                    res = budget_handler.check_expired(name)
+
+                    if res in [201, 202]:
                         await message.channel.send(
-                            f"```Your {name} budget has expired.```"
+                            f"```Your {name} budget has {'expired. Archive process complete.' if res == 201 else 'not expired.'}```"
                         )
-                    else:
-                        await message.channel.send(
-                            f"```Your {name} budget has not expired.```"
-                        )
+
+                if res == 404:
+                    await message.channel.send(
+                        "```Error identifying budget, please use '.checkbudgetexp <name e.g. coffee>'```"
+                    )
 
             if msg.startswith(".resetbudgetarchive"):
                 await message.delete()
                 budget_handler.reset_archive
-                await message.channel.send("Reset budget archive. - RELAB")
+                await message.channel.send("```Reset budget archive.```")
 
 
 client.run(os.getenv("TOKEN"))

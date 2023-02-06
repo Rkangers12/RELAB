@@ -177,19 +177,21 @@ class BudgetHandler:
         else:
             return 201
 
-    def check_expired(self, name=None):
+    def check_expired(self, name):
         """compare expiration against today's date"""
 
-        if name is None:
-            return False
+        if self.check_budget_exists(name):
+            # retrieve today's day to compare against expiration
+            today = str(self._handletime.format_a_day(datetime.now().day))
+            budget = self.get_budget(name)
 
-        # retrieve today's day to compare against expiration
-        today = str(self._handletime.format_a_day(datetime.now().day))
-        budget = self.get_budget(name)
+            if today > budget.get("expiration"):
+                self.archive_budget(name)
+                return 201
+            else:
+                return 202
 
-        if today > budget.get("expiration"):
-            self.archive_budget(name)
-            return True
+        return 404
 
     @property
     def budget_spending(self):
