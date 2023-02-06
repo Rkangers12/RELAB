@@ -28,9 +28,9 @@ class SummaryReport:
         start = self._ht.convert_timestamp(
             self._ht.current_timestamp() - (86400 * days),
             "clean",
-        )[:10]
+        )
 
-        end = self._ht.convert_timestamp(self._ht.current_timestamp(), "clean")[:10]
+        end = self._ht.convert_timestamp(self._ht.current_timestamp(), "clean")
 
         session_breakdown = []
         for session in self._sessions:
@@ -41,11 +41,13 @@ class SummaryReport:
                 "{}: {} (hours)".format(session.get("sessionType"), period_end)
             )
 
-        message = ["```Summary ({})".format(period.capitalize())]
-        message.append("    Period: [{} - {}]".format(start, end))
+        message = [f"```Summary ({period.capitalize()})"]
+        message.append(f"    Period: [{start} - {end}]\n")
         message.append("    Total hours spent per sessions:")
+
         for breakdown in session_breakdown:
-            message.append("        - {}".format(breakdown))
+            message.append(f"        - {breakdown}")
+
         message.append("")
         message.append("(Summary brought to you by RELAB)```")
 
@@ -56,13 +58,13 @@ class SummaryReport:
 
         channel = self._client.get_channel(self._channel_id)
 
-        if self._ht.check_end_week() or True:
+        if self._ht.check_end_week():
             await channel.send("\n".join(self.breakdown_generate("week")))
 
-        if self._ht.check_end_month() or True:
+        if self._ht.check_end_month():
             await channel.send("\n".join(self.breakdown_generate("month")))
 
-        if self._ht.check_end_year() or True:
+        if self._ht.check_end_year():
             await channel.send("\n".join(self.breakdown_generate("year")))
 
     @tasks.loop(seconds=600)  # Create the task
@@ -84,7 +86,6 @@ class SummaryReport:
 
             # functionality to wait till activation time - 23:55:00 PM today
             activate_time = datetime.combine(now.date(), self._task_time)
-
             seconds_until_activate = (activate_time - now).total_seconds()
             await asyncio.sleep(seconds_until_activate)  # Sleep until activation time
 
@@ -92,9 +93,5 @@ class SummaryReport:
 
             # functionality to wait till midnight
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
-
-            # Seconds until tomorrow (midnight)
             seconds_until_midnight = (midnight - now).total_seconds()
-
-            # Sleep until tomorrow and then the loop will start a new iteration
             await asyncio.sleep(seconds_until_midnight)
