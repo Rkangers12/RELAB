@@ -163,10 +163,39 @@ async def on_message(message):
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
 
+            if msg.startswith(".helpcommands"):
+                await message.delete()
+
+                prompt = ["```Command Prompt Help:"]
+                prompt.append("Command Channel: snapshots")
+                prompt.append("    .snapshot\n")
+
+                prompt.append("Command Channel: bot-settings")
+                prompt.append("    .power [toggle]\n")
+
+                prompt.append("Command Channel: any")
+                prompt.append("    .purge [deletes 100 messages at a time]```")
+
+                await message.channel.send("\n".join(prompt))
+
+            if msg.startswith(".helpsessions"):
+                await message.delete()
+
+                prompt = ["```Sessions Command Prompt Help:"]
+                prompt.append("Command Channel: relab\n")
+
+                prompt.append("    .study [toggle]")
+                prompt.append("    .getstudy")
+                prompt.append("    .gym [toggle]")
+                prompt.append("    .getgym```")
+
+                await message.channel.send("\n".join(prompt))
+
             if msg.startswith(".helppayroll"):
                 await message.delete()
 
                 prompt = ["```Payroll Command Prompt Help:"]
+                prompt.append("Command Channel: relab\n")
 
                 prompt.append("    .setsalary <gross annual e.g. 45000>")
                 prompt.append("    .getsalary")
@@ -187,6 +216,8 @@ async def on_message(message):
                 await message.delete()
 
                 prompt = ["```Bill Command Prompt Help:"]
+                prompt.append("Command Channel: relab\n")
+
                 prompt.append(
                     "    .createbill <name e.g. rent> ‹exp e.g. 14> <limit e.g. 50>"
                 )
@@ -204,6 +235,8 @@ async def on_message(message):
                 await message.delete()
 
                 prompt = ["```Subscription Command Prompt Help:"]
+                prompt.append("Command Channel: relab\n")
+
                 prompt.append(
                     "    .createsub <name e.g. AppleMusic> ‹exp e.g. 14> <limit e.g. 5.99>"
                 )
@@ -223,6 +256,8 @@ async def on_message(message):
                 await message.delete()
 
                 prompt = ["```Budget Command Prompt Help:"]
+                prompt.append("Command Channel: relab\n")
+
                 prompt.append(
                     "    .createbudget <name e.g. coffee> <expiration e.g. 13> <limit e.g 50>"
                 )
