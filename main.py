@@ -81,17 +81,17 @@ async def on_ready():
         billTask.bill_reporter.start()  # if the task is not already running, start it.
         print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
 
-    # subscriptionTask = SubscriptionsReport(
-    #     channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
-    # )
+    subscriptionTask = SubscriptionsReport(
+        channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
+    )
 
-    # if not subscriptionTask.subscription_reporter.is_running():
-    #     subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
-    #     print(
-    #         "Booted Background Process #4: Subscription Reporter - {0.user}".format(
-    #             client
-    #         )
-    #     )
+    if not subscriptionTask.subscription_reporter.is_running():
+        subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
+        print(
+            "Booted Background Process #4: Subscription Reporter - {0.user}".format(
+                client
+            )
+        )
 
     budgetTask = BudgetsReport(
         channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
