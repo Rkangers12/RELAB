@@ -12,6 +12,7 @@ from tools.session_commands import SessionCommands
 
 from jobs.bills_report import BillsReport
 from jobs.budgets_report import BudgetsReport
+from jobs.notes_report import NotesReport
 from jobs.payslip_report import PayslipReport
 from jobs.subscriptions_report import SubscriptionsReport
 from jobs.summary_report import SummaryReport
@@ -19,6 +20,7 @@ from jobs.summary_report import SummaryReport
 from util.budget_handler import BudgetHandler
 from util.handle_times import HandleTimes
 from util.monitor import Monitor
+from util.monitor_notes import NotesMonitor
 from util.monitor_subscriptions import SubscriptionsMonitor
 from util.session_tracker import SessionTrack
 
@@ -40,12 +42,13 @@ inc_coms = IncomeCommands(datastore=datastore)
 
 budget_handler = BudgetHandler(datastore=datastore)
 bills_monitor = Monitor("bill", datastore=datastore)
+notes_monitor = NotesMonitor("note", datastore=datastore)
 subs_monitor = SubscriptionsMonitor("subscription", datastore=datastore)
 
 
 @client.event
 async def on_ready():
-    print("\nWe have logged in as {0.user}".format(client))
+    print("\nWe have logged in as {0.user}\n".format(client))
 
     summaryTask = SummaryReport(
         channel_id=int(os.getenv("SESSIONS_CHANNEL")),
@@ -93,6 +96,14 @@ async def on_ready():
             )
         )
 
+    noteTask = NotesReport(
+        channel_id=int(os.getenv("NOTES_CHANNEL")), intents=intents, client=client
+    )
+
+    if not noteTask.note_reporter.is_running():
+        noteTask.note_reporter.start()  # if the task is not already runnning, start.
+        print("Booted Background Process #5: Note Reporter - {0.user}".format(client))
+
     budgetTask = BudgetsReport(
         channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
     )
@@ -100,7 +111,7 @@ async def on_ready():
     if not budgetTask.budget_reporter.is_running():
         budgetTask.budget_reporter.start()  # if the task is not already runnning, start.
         print(
-            "Booted Background Process #5: Budget Reporter - {0.user}\n".format(client)
+            "Booted Background Process #6: Budget Reporter - {0.user}\n".format(client)
         )
 
 
@@ -1003,6 +1014,161 @@ async def on_message(message):
                 await message.delete()
                 budget_handler.reset_archive
                 await message.channel.send("```Reset budget archive.```")
+
+            if msg.startswith(".repeatnote") or msg.startswith(".quicknote"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                quick = False if "repeat" in msg else True
+                note_type = "quick" if quick else "repeat"
+
+                if components != 400 and len(components) > 3:
+
+                    name, day = components[:2]
+                    desc = " ".join(components[2:])
+
+                    res = notes_monitor.create(name, day, desc, quick)
+                else:
+                    res = 400
+
+                if res == 200:
+                    await message.channel.send(
+                        f"```Created {note_type.title()} Note:\nTitle: {name} | Alert Date: {due_date(day)}\n\n    Description: '{desc}'```"
+                    )
+                elif res == 201:
+                    await message.channel.send(
+                        f"```Note {name} does not exist. Please create using '.repeatnote' or '.quicknote' first.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Error creating note. Please use command '.{note_type}note <name e.g. Transfer> <day e.g. 13> <desc e.g. Transfer money to monzo>'```"
+                    )
+
+            if msg.startswith(".notedesc"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) > 2:
+
+                    name = components[0]
+                    desc = " ".join(components[1:])
+
+                    res = notes_monitor.modify_desc(name, desc)
+                else:
+                    res = 400
+
+                if res == 200:
+                    await message.channel.send(
+                        f"```Modified {name} note, new description '{desc}'```"
+                    )
+                elif res == 204:
+                    await message.channel.send(
+                        f"```Note {name} does not exist. Please create using '.repeatnote' or '.quicknote' first.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Error modifying note. Please use command '.notedesc <name e.g. Transfer> <desc e.g. Transfer money to monzo>'```"
+                    )
+
+            if msg.startswith(".noteday"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 2:
+                    name, day = components
+                    res = notes_monitor.modify_day(name, day)
+                else:
+                    res = 400
+
+                if res == 200:
+                    await message.channel.send(
+                        f"```Modified {name} note, new alert date {due_date(day)}```"
+                    )
+                elif res == 204:
+                    await message.channel.send(
+                        f"```Note {name} does not exists, please delete or modify it.```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Error modifying note. Please use command '.noteday <name e.g. Transfer> <day e.g. 13>'```"
+                    )
+
+            if msg.startswith(".retrievenote"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 1:
+                    name = components[0]
+                    note = notes_monitor.get(name)
+                else:
+                    note = None
+
+                if note is not None:
+                    note_type = "Repeat" if note["repeat"] else "Quick"
+                    await message.channel.send(
+                        f"```{note_type} Note:\nTitle: {name} | Alert Date: {due_date(note['day'])}\n\n    Description: '{note['desc']}'```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Note was not retrievable, does it exist? Please use command '.retrievenote <name e.g. transfer>'.```"
+                    )
+
+            if msg.startswith(".deletenote"):
+                await message.delete()
+
+                components = message_sorter(msg)
+                if components != 400 and len(components) == 1:
+                    name = components[0]
+                    res = notes_monitor.delete(name)
+
+                    if res == 200:
+                        await message.channel.send(f"```Note {name} was deleted.```")
+                        return None
+
+                await message.channel.send(
+                    f"```Error deleting note. Please use command '.deletenote <name e.g. transfer>'.```"
+                )
+
+            if msg.startswith(".deleteallnotes"):
+                await message.delete()
+
+                outcome = notes_monitor.delete_all
+
+                comms = ["```Notes Information:"]
+                comms.append(
+                    f"Date [{hand_time.format_a_day(datetime.now().day)}] | Request ID [#{str(uuid4().hex[:10])}]\n"
+                )
+
+                comms.append(
+                    f"        - Successful notes deletion: {', '.join(outcome['deleted'])}"
+                )
+                comms.append(
+                    f"        - Failed notes deletion: {', '.join(outcome['failed'])}"
+                )
+
+                await message.channel.send("\n".join(comms) + "```")
+
+            if msg.startswith(".notes"):
+                await message.delete()
+
+                notes = notes_monitor.get_all
+
+                comms = ["```Notes Information:"]
+                comms.append(
+                    f"Date [{hand_time.format_a_day(datetime.now().day)}] | Request ID [#{str(uuid4().hex[:10])}]\n"
+                )
+
+                if len(notes) == 0:
+                    comms.append("        - No notes")
+
+                for note in notes:
+                    meta = notes[note]
+                    note_type = "repeat" if meta["repeat"] else "quick"
+                    comms.append(
+                        f"Note '{note}' is of type {note_type} that seeks to alert on {due_date(meta['day'])}."
+                    )
+
+                await message.channel.send("\n".join(comms) + "```")
 
 
 client.run(os.getenv("TOKEN"))

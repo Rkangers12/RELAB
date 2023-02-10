@@ -22,7 +22,7 @@ class BillsReport:
         self._task_time = time(hour=7, minute=00, second=00)
 
     async def background_reporter(self):
-        """checks if a new payday is coming up and to send out alerts for reminders"""
+        """checks if bill payment is coming up and to send out alerts for reminders"""
 
         channel = self._client.get_channel(self._channel_id)
 

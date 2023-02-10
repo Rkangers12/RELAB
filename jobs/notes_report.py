@@ -5,63 +5,57 @@ from discord.ext import tasks
 
 from store.handler import Handler
 from util.handle_times import HandleTimes
-from util.monitor_subscriptions import SubscriptionsMonitor
+from util.monitor_notes import NotesMonitor
 
 
-class SubscriptionsReport:
-
-    _KEY = "subscriptionsData"
-
+class NotesReport:
     def __init__(self, channel_id, intents=None, client=None):
 
         self._datastore = Handler()
         self._ht = HandleTimes()
-        self._sm = SubscriptionsMonitor("subscription", datastore=self._datastore)
+        self._nm = NotesMonitor("note", datastore=self._datastore)
 
         self._channel_id = channel_id
         self._intents = intents or discord.Intents.all()
         self._client = client or discord.Client(intents=self._intents)
 
-        self._task_time = time(hour=7, minute=15, second=00)
+        self._task_time = time(hour=9, minute=30, second=00)
 
     async def background_reporter(self):
-        """checks if subscription payment is coming up and to send out alerts for reminders"""
+        """Check if an alert for a note is due"""
 
         channel = self._client.get_channel(self._channel_id)
 
-        subscriptions = self._sm.get_all
-        for sub in subscriptions:
+        notes = self._nm.get_all
+        for note in notes:
 
-            if not self._sm.active(sub):
-                continue
+            meta = self._datastore.get_nested_value(["note", note])
+            day = self._ht.format_a_day(meta["day"])
+            desc = meta["desc"]
 
-            meta = self._datastore.get_nested_value(["subscription", sub])
-            expiration = self._ht.format_a_day(meta["expiration"], True, False)
-            limit = meta["limit"]
-
-            sub_day_ts = self._ht.date_to_ts(expiration)
+            note_ts = self._ht.date_to_ts(day)
             now = self._ht.current_timestamp()
 
-            if sub_day_ts - 86400 * 3 < now < sub_day_ts - 86400 * 2.7:
+            if note_ts - 86400 * 2.7 < now < note_ts - 86400 * 2.4 or True:
                 await channel.send(
-                    f"```REMINDER: Your £{limit} {sub.title()} subscription is due in 3 days, {expiration}.```"
+                    f"```ALERT: You are due to be alerted in 3 days for your {note} note: '{desc.capitalize()}'.```"
                 )
 
-            if sub_day_ts - 86400 * 1 < now < sub_day_ts - 86400 * 0.7:
+            if note_ts - 86400 * 0.7 < now < note_ts - 86400 * 0.4 or True:
                 await channel.send(
-                    f"```REMINDER: Your £{limit} {sub.title()} subscription is due in 1 day, {expiration}.```"
+                    f"```ALERT: You are due to be alerted in 1 day for your {note} note: '{desc.capitalize()}'.```"
                 )
-
-            if sub_day_ts < now < sub_day_ts + 86400:
+            if note_ts < now < note_ts + 86400 or True:
                 await channel.send(
-                    f"```Payment of £{limit} made on your {sub.title()} subscription today.```"
+                    f"```ALERT: Reminding you about your note '{note}'. [1/2]```"
                 )
+                await channel.send(f"```{desc.capitalize()}. [2/2]```")
 
-    @tasks.loop(seconds=600)
-    async def subscription_reporter(self):
+    @tasks.loop(seconds=600)  # TESTING ADJUSTABLE
+    async def note_reporter(self):
 
         now = datetime.now()
-        print("[%s] INTERNAL MESSAGE: Subscription Reporter is at work." % now.time())
+        print("[%s] INTERNAL MESSAGE: Note Reporter is at work." % now.time())
 
         if now.time() > self._task_time:
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
@@ -87,4 +81,4 @@ class SubscriptionsReport:
             # functionality to wait till midnight
             midnight = datetime.combine(now.date() + timedelta(days=1), time(0))
             seconds_until_midnight = (midnight - now).total_seconds()
-            await asyncio.sleep(seconds_until_midnight)  # TESTING ADJUSTABLE
+            await asyncio.sleep(seconds_until_midnight)
