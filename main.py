@@ -143,11 +143,31 @@ async def power(message):
         await message.channel.send("```RELAB has been switched on.```")
 
 
+def initialise_user(author):
+    """initialise the user into the database"""
+
+    author = str(author)
+    key = "users"
+
+    if datastore.get_value(key, {}) == {}:
+        datastore.overwrite(db_key=key, db_value={})
+
+    if author not in datastore.get_value(key, {}):
+        # initialise user
+        datastore.overwrite_nested([key], author, {})
+
+        # initialise channel keys
+        code_id = uuid4().hex[:10]
+        datastore.overwrite_nested([key, author], "REPORTER", f"REPORTER_{code_id}")
+        datastore.overwrite_nested([key, author], "RELAB", f"RELAB_{code_id}")
+
+
 @client.event
 async def on_message(message):
 
     msg = message.content
     bypass = False
+    bot_powered = datastore.get_nested_value(["settings", "power"])
 
     if message.author == client.user:
         if msg.startswith(".payslip"):
@@ -155,22 +175,35 @@ async def on_message(message):
         else:
             return
 
-    if msg.startswith(".purge") and message.author.id == int(os.getenv("KING_ID")):
-        try:
-            print("Purging")
-            await message.channel.purge(limit=100)
-        except discord.errors.NotFound:
-            print("No messages to purge found")
+    if message.author.id == int(os.getenv("KING_ID")):
 
-    if message.channel.id == int(os.getenv("BOT_SETTINGS")):
-        if msg.startswith(".power"):
-            await power(message)
+        if msg.startswith(".purge") and message.author.id:
+            try:
+                print("Purging")
+                await message.channel.purge(limit=100)
+            except discord.errors.NotFound:
+                print("No messages to purge found")
 
-    bot_powered = datastore.get_nested_value(["settings", "power"])
-    if bot_powered:
-        if message.channel.id == int(os.getenv("SNAPSHOTS_CHANNEL")):
+        if message.channel.id == int(os.getenv("BOT_SETTINGS")):
+            if msg.startswith(".power"):
+                await power(message)
+
+        if message.channel.id == int(os.getenv("SNAPSHOTS_CHANNEL")) and bot_powered:
             if msg.startswith(".snapshot"):
                 await snapshot(message)
+
+        if message.channel.id == int(os.getenv("BOT_HELPER")) and bot_powered:
+            if msg.startswith(".channels"):
+                await message.channel.send("```Success```")
+
+                for channel in client.get_all_channels():
+                    print(channel.id, channel.name)
+
+    if bot_powered:
+
+        if message.channel.id == int(os.getenv("ACCESS_CHANNEL")):
+            initialise_user(message.author)
+            # code to grant user a role
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
 
@@ -289,13 +322,6 @@ async def on_message(message):
                 prompt.append("    .helpbudget```")
 
                 await message.channel.send("\n".join(prompt))
-
-        if message.channel.id == int(os.getenv("BOT_HELPER")):
-            if msg.startswith(".channels"):
-                await message.channel.send("```Success```")
-
-                for channel in client.get_all_channels():
-                    print(channel.id, channel.name)
 
         if message.channel.id == int(os.getenv("RELAB_CHANNEL")) or bypass:
             if msg.startswith(".study"):
