@@ -8,6 +8,7 @@ from uuid import uuid4
 from tools.handler import Handler
 
 from tools.income_commands import IncomeCommands
+from tools.initialise_database import DatastoreInit
 from tools.session_commands import SessionCommands
 
 from jobs.bills_report import BillsReport
@@ -32,8 +33,10 @@ client = discord.Client(intents=intents)
 datastore = Handler()
 hand_time = HandleTimes()
 
-studytrack = SessionTrack("study_records", "studying", datastore=datastore)
-gymtrack = SessionTrack("gym_records", "gymming", datastore=datastore)
+setup_db = DatastoreInit(datastore)
+
+studytrack = SessionTrack("studyRecords", "studying", datastore=datastore)
+gymtrack = SessionTrack("gymRecords", "gymming", datastore=datastore)
 
 sesscomms = SessionCommands(
     datastore=datastore, studytrack=studytrack, gymtrack=gymtrack
@@ -51,7 +54,7 @@ async def on_ready():
     print("\nWe have logged in as {0.user}\n".format(client))
 
     summaryTask = SummaryReport(
-        channel_id=int(os.getenv("SESSIONS_CHANNEL")),
+        datastore,
         intents=intents,
         client=client,
         sessions=[
@@ -66,53 +69,53 @@ async def on_ready():
             "Booted Background Process #1: Statistic Reporter - {0.user}".format(client)
         )
 
-    payslipTask = PayslipReport(
-        channel_id=int(os.getenv("PAYSLIP_CHANNEL")), intents=intents, client=client
-    )
+    # payslipTask = PayslipReport(
+    #     channel_id=int(os.getenv("PAYSLIP_CHANNEL")), intents=intents, client=client
+    # )
 
-    if not payslipTask.payslip_reporter.is_running():
-        payslipTask.payslip_reporter.start()  # if the task is not already running, start it.
-        print(
-            "Booted Background Process #2: Payslip Reporter - {0.user}".format(client)
-        )
+    # if not payslipTask.payslip_reporter.is_running():
+    #     payslipTask.payslip_reporter.start()  # if the task is not already running, start it.
+    #     print(
+    #         "Booted Background Process #2: Payslip Reporter - {0.user}".format(client)
+    #     )
 
-    billTask = BillsReport(
-        channel_id=int(os.getenv("BILLS_CHANNEL")), intents=intents, client=client
-    )
+    # billTask = BillsReport(
+    #     channel_id=int(os.getenv("BILLS_CHANNEL")), intents=intents, client=client
+    # )
 
-    if not billTask.bill_reporter.is_running():
-        billTask.bill_reporter.start()  # if the task is not already running, start it.
-        print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
+    # if not billTask.bill_reporter.is_running():
+    #     billTask.bill_reporter.start()  # if the task is not already running, start it.
+    #     print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
 
-    subscriptionTask = SubscriptionsReport(
-        channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
-    )
+    # subscriptionTask = SubscriptionsReport(
+    #     channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
+    # )
 
-    if not subscriptionTask.subscription_reporter.is_running():
-        subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
-        print(
-            "Booted Background Process #4: Subscription Reporter - {0.user}".format(
-                client
-            )
-        )
+    # if not subscriptionTask.subscription_reporter.is_running():
+    #     subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
+    #     print(
+    #         "Booted Background Process #4: Subscription Reporter - {0.user}".format(
+    #             client
+    #         )
+    #     )
 
-    noteTask = NotesReport(
-        channel_id=int(os.getenv("NOTES_CHANNEL")), intents=intents, client=client
-    )
+    # noteTask = NotesReport(
+    #     channel_id=int(os.getenv("NOTES_CHANNEL")), intents=intents, client=client
+    # )
 
-    if not noteTask.note_reporter.is_running():
-        noteTask.note_reporter.start()  # if the task is not already runnning, start.
-        print("Booted Background Process #5: Note Reporter - {0.user}".format(client))
+    # if not noteTask.note_reporter.is_running():
+    #     noteTask.note_reporter.start()  # if the task is not already runnning, start.
+    #     print("Booted Background Process #5: Note Reporter - {0.user}".format(client))
 
-    budgetTask = BudgetsReport(
-        channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
-    )
+    # budgetTask = BudgetsReport(
+    #     channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
+    # )
 
-    if not budgetTask.budget_reporter.is_running():
-        budgetTask.budget_reporter.start()  # if the task is not already runnning, start.
-        print(
-            "Booted Background Process #6: Budget Reporter - {0.user}\n".format(client)
-        )
+    # if not budgetTask.budget_reporter.is_running():
+    #     budgetTask.budget_reporter.start()  # if the task is not already runnning, start.
+    #     print(
+    #         "Booted Background Process #6: Budget Reporter - {0.user}\n".format(client)
+    #     )
 
 
 async def snapshot(message):
@@ -130,9 +133,6 @@ async def power(message):
     await message.delete()
 
     setting = "settings"
-    if datastore.get_value(setting, {}) == {}:
-        datastore.overwrite(db_key=setting, db_value={})
-
     power = datastore.get_nested_value([setting, "power"], default=False)
 
     if power:
@@ -146,11 +146,7 @@ async def power(message):
 def initialise_user(author):
     """initialise the user into the database"""
 
-    author = str(author)
     key = "users"
-
-    if datastore.get_value(key, {}) == {}:
-        datastore.overwrite(db_key=key, db_value={})
 
     if author not in datastore.get_value(key, {}):
         # initialise user
@@ -161,6 +157,8 @@ def initialise_user(author):
         datastore.overwrite_nested([key, author], "REPORTER", f"REPORTER_{code_id}")
         datastore.overwrite_nested([key, author], "RELAB", f"RELAB_{code_id}")
 
+        setup_db.setup_user(author)
+
 
 @client.event
 async def on_message(message):
@@ -169,11 +167,17 @@ async def on_message(message):
     bypass = False
     bot_powered = datastore.get_nested_value(["settings", "power"])
 
-    if message.author == client.user:
+    author = str(message.author)
+
+    if author == client.user:
         if msg.startswith(".payslip"):
             bypass = True
         else:
             return
+
+    relab_channel = datastore.get_nested_value(
+        ["users", author, "RELAB"], default="RELAB_0000"
+    )
 
     if message.author.id == int(os.getenv("KING_ID")):
 
@@ -202,7 +206,7 @@ async def on_message(message):
     if bot_powered:
 
         if message.channel.id == int(os.getenv("ACCESS_CHANNEL")):
-            initialise_user(message.author)
+            initialise_user(author)
             # code to grant user a role
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
@@ -323,18 +327,18 @@ async def on_message(message):
 
                 await message.channel.send("\n".join(prompt))
 
-        if message.channel.id == int(os.getenv("RELAB_CHANNEL")) or bypass:
+        if message.channel.id == int(os.getenv(relab_channel, "0000")) or bypass:
             if msg.startswith(".study"):
-                await sesscomms.study(message)
+                await sesscomms.study(message, author)
 
             if msg.startswith(".getstudy"):
-                await sesscomms.get_study(message)
+                await sesscomms.get_study(message, author)
 
             if msg.startswith(".gym"):
-                await sesscomms.gym(message)
+                await sesscomms.gym(message, author)
 
             if msg.startswith(".getgym"):
-                await sesscomms.get_gym(message)
+                await sesscomms.get_gym(message, author)
 
             if msg.startswith(".setsalary"):
                 await message.delete()

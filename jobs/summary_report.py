@@ -1,5 +1,6 @@
 import discord
 import asyncio
+import os
 
 from datetime import datetime, time, timedelta
 from discord.ext import tasks
@@ -8,19 +9,19 @@ from util.handle_times import HandleTimes
 
 
 class SummaryReport:
-    def __init__(self, channel_id, intents=None, client=None, sessions=None):
+    def __init__(self, datastore, intents=None, client=None, sessions=None):
 
         self._ht = HandleTimes()
+        self._datastore = datastore
 
         self._intents = intents or discord.Intents.all()
         self._client = client or discord.Client(intents=self._intents)
         self._sessions = sessions or []
-        self._channel_id = channel_id
 
         # Create the time on which the task should always run
         self._task_time = time(hour=23, minute=55, second=00)
 
-    def breakdown_generate(self, period):
+    def breakdown_generate(self, period, user):
 
         period_resp = self._ht.calculate_days(period=period)
         days = period_resp[1] if period == "month" else period_resp
@@ -35,10 +36,10 @@ class SummaryReport:
         session_breakdown = []
         for session in self._sessions:
             func = session.get("classVar")
-            period_end = func.period_dates(period)
+            period_end = func.period_dates(period, user)
 
             session_breakdown.append(
-                "{}: {} (hours)".format(session.get("sessionType"), period_end)
+                f"{session.get('sessionType')}: {period_end} (hours)"
             )
 
         message = [f"```Summary ({period.capitalize()})"]
@@ -56,16 +57,30 @@ class SummaryReport:
     async def background_reporter(self):
         """checks if a period has come to an end to provide a summary on each session"""
 
-        channel = self._client.get_channel(self._channel_id)
+        for session_user in self._datastore.get_value("sessions"):
 
-        if self._ht.check_end_week():
-            await channel.send("\n".join(self.breakdown_generate("week")))
+            reporter_env = self._datastore.get_nested_value(
+                ["users", session_user, "REPORTER"]
+            )
+            try:
+                channel = self._client.get_channel(int(os.getenv(reporter_env)))
+            except TypeError:
+                continue
 
-        if self._ht.check_end_month():
-            await channel.send("\n".join(self.breakdown_generate("month")))
+            if self._ht.check_end_week():
+                await channel.send(
+                    "\n".join(self.breakdown_generate("week", session_user))
+                )
 
-        if self._ht.check_end_year():
-            await channel.send("\n".join(self.breakdown_generate("year")))
+            if self._ht.check_end_month():
+                await channel.send(
+                    "\n".join(self.breakdown_generate("month", session_user))
+                )
+
+            if self._ht.check_end_year():
+                await channel.send(
+                    "\n".join(self.breakdown_generate("year", session_user))
+                )
 
     @tasks.loop(seconds=600)  # Create the task
     async def statistic_report(self):
