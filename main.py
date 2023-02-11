@@ -163,7 +163,7 @@ async def on_message(message):
 
     if message.author.id == int(os.getenv("KING_ID")):
 
-        if msg.startswith(".purge") and message.author.id:
+        if msg.startswith(".purge"):
             try:
                 print("Purging")
                 await message.channel.purge(limit=100)
@@ -188,8 +188,11 @@ async def on_message(message):
     if bot_powered:
 
         if message.channel.id == int(os.getenv("ACCESS_CHANNEL")):
+            await message.delete()
+            await message.channel.send(
+                f"```Process to register {author} has begun. Please be patient :)```"
+            )
             initialise_user(author)
-            # code to grant user a role
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
 
