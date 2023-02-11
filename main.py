@@ -83,17 +83,15 @@ async def on_ready():
         billTask.bill_reporter.start()  # if the task is not already running, start it.
         print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
 
-    # subscriptionTask = SubscriptionsReport(
-    #     channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
-    # )
+    subscriptionTask = SubscriptionsReport(intents=intents, client=client)
 
-    # if not subscriptionTask.subscription_reporter.is_running():
-    #     subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
-    #     print(
-    #         "Booted Background Process #4: Subscription Reporter - {0.user}".format(
-    #             client
-    #         )
-    #     )
+    if not subscriptionTask.subscription_reporter.is_running():
+        subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
+        print(
+            "Booted Background Process #4: Subscription Reporter - {0.user}".format(
+                client
+            )
+        )
 
     noteTask = NotesReport(intents=intents, client=client)
 
@@ -611,7 +609,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 3:
                     name, expiration, limit = components
-                    res = subs_monitor.extend_create(name, expiration, limit)
+                    res = subs_monitor.extend_create(name, expiration, limit, author)
                 else:
                     res = 400
 
@@ -634,7 +632,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, limit = components
-                    res = subs_monitor.modify_limit(name, limit)
+                    res = subs_monitor.modify_limit(name, limit, author)
                 else:
                     res = 400
 
@@ -657,7 +655,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, expiration = components
-                    res = subs_monitor.modify_expiration(name, expiration)
+                    res = subs_monitor.modify_expiration(name, expiration, author)
                 else:
                     res = 400
 
@@ -680,7 +678,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    subscription = subs_monitor.get(name)
+                    subscription = subs_monitor.get(name, author)
                 else:
                     subscription = None
 
@@ -699,7 +697,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = subs_monitor.delete(name)
+                    res = subs_monitor.delete(name, author)
 
                     if res == 200:
                         await message.channel.send(
@@ -714,7 +712,7 @@ async def on_message(message):
             if msg.startswith(".deleteallsubs"):
                 await message.delete()
 
-                outcome = subs_monitor.delete_all
+                outcome = subs_monitor.delete_all(author)
 
                 comms = ["```Subscriptions Information:"]
                 comms.append(
@@ -733,7 +731,7 @@ async def on_message(message):
             if msg.startswith(".subscriptions"):
                 await message.delete()
 
-                subscriptions = subs_monitor.get_all
+                subscriptions = subs_monitor.get_all(author)
 
                 comms = ["```Subscriptions Information:"]
                 comms.append(
@@ -757,7 +755,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = subs_monitor.toggle_subscription(name)
+                    res = subs_monitor.toggle_subscription(name, author)
 
                     if res != 404:
                         await message.channel.send(
@@ -775,7 +773,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = subs_monitor.active(name)
+                    res = subs_monitor.active(name, author)
 
                     if res is not None:
                         await message.channel.send(
