@@ -60,14 +60,19 @@ class DatastoreInit:
     def init_payroll(self, user):
         """initialise the payroll within the database"""
 
-        self._datastore.overwrite_nested(["users", user], "payrollData", {})
+        key = "payrollData"
+        self._datastore.overwrite_nested(["users", user], key, {})
+        self._datastore.overwrite_nested(["users", user, key], "grossSalary", 1)
+        self._datastore.overwrite_nested(["users", user, key], "notionals", 1)
+        self._datastore.overwrite_nested(["users", user, key], "payDay", 0)
+        self._datastore.overwrite_nested(["users", user, key], "activeSL", False)
 
     def init_budget(self, user):
         """initialise the budget system within the database"""
 
-        budget_key = "budgetData"
+        key = "budgetData"
 
-        self._datastore.overwrite_nested(["users", user], budget_key, {})
-        self._datastore.overwrite_nested(["users", user, budget_key], "budgets", {})
-        self._datastore.overwrite_nested(["users", user, budget_key], "archive", {})
-        self._datastore.overwrite_nested(["users", user, budget_key], "threshold", {})
+        self._datastore.overwrite_nested(["users", user], key, {})
+        self._datastore.overwrite_nested(["users", user, key], "budgets", {})
+        self._datastore.overwrite_nested(["users", user, key], "archive", {})
+        self._datastore.overwrite_nested(["users", user, key], "threshold", {})

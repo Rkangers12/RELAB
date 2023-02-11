@@ -69,15 +69,13 @@ async def on_ready():
             "Booted Background Process #1: Statistic Reporter - {0.user}".format(client)
         )
 
-    # payslipTask = PayslipReport(
-    #     channel_id=int(os.getenv("PAYSLIP_CHANNEL")), intents=intents, client=client
-    # )
+    payslipTask = PayslipReport(datastore, intents=intents, client=client)
 
-    # if not payslipTask.payslip_reporter.is_running():
-    #     payslipTask.payslip_reporter.start()  # if the task is not already running, start it.
-    #     print(
-    #         "Booted Background Process #2: Payslip Reporter - {0.user}".format(client)
-    #     )
+    if not payslipTask.payslip_reporter.is_running():
+        payslipTask.payslip_reporter.start()  # if the task is not already running, start it.
+        print(
+            "Booted Background Process #2: Payslip Reporter - {0.user}".format(client)
+        )
 
     # billTask = BillsReport(
     #     channel_id=int(os.getenv("BILLS_CHANNEL")), intents=intents, client=client
@@ -163,13 +161,10 @@ async def on_message(message):
     bypass = False
     bot_powered = datastore.get_nested_value(["settings", "power"])
 
-    author = str(message.author)
+    if message.author == client.user:
+        return
 
-    if author == client.user:
-        if msg.startswith(".payslip"):
-            bypass = True
-        else:
-            return
+    author = str(message.author)
 
     relab_channel = datastore.get_nested_value(
         ["users", author, "RELAB"], default="RELAB_0000"
@@ -323,7 +318,7 @@ async def on_message(message):
 
                 await message.channel.send("\n".join(prompt))
 
-        if message.channel.id == int(os.getenv(relab_channel, "0000")) or bypass:
+        if message.channel.id == int(os.getenv(relab_channel, "0000")):
             if msg.startswith(".study"):
                 await sesscomms.study(message, author)
 
@@ -338,7 +333,7 @@ async def on_message(message):
 
             if msg.startswith(".setsalary"):
                 await message.delete()
-                resp = inc_coms.set_payroll(msg, "grossSalary")
+                resp = inc_coms.set_payroll(msg, "grossSalary", author)
 
                 if resp == 200:
                     await message.channel.send("```Gross Salary details updated.```")
@@ -349,12 +344,12 @@ async def on_message(message):
                 await message.delete()
 
                 await message.channel.send(
-                    f"```Payroll details by RELAB: \n    - Gross Salary: £{inc_coms.get('grossSalary')}```"
+                    f"```Payroll details by RELAB: \n    - Gross Salary: £{inc_coms.get('grossSalary', author)}```"
                 )
 
             if msg.startswith(".setnotionals"):
                 await message.delete()
-                resp = inc_coms.set_payroll(msg, "notionals")
+                resp = inc_coms.set_payroll(msg, "notionals", author)
 
                 if resp == 200:
                     await message.channel.send("```Notionals details updated.```")
@@ -365,13 +360,13 @@ async def on_message(message):
                 await message.delete()
 
                 await message.channel.send(
-                    f"```Payroll details by RELAB: \n    - Notionals: £{inc_coms.get('notionals')}```"
+                    f"```Payroll details by RELAB: \n    - Notionals: £{inc_coms.get('notionals', author)}```"
                 )
 
             if msg.startswith(".setpaydate"):
                 await message.delete()
 
-                resp = inc_coms.set_payroll(msg, "payDay")
+                resp = inc_coms.set_payroll(msg, "payDay", author)
 
                 if resp == 200:
                     await message.channel.send("```Pay Date details updated.```")
@@ -382,7 +377,7 @@ async def on_message(message):
                 await message.delete()
 
                 paydate = hand_time.format_a_day(
-                    int(inc_coms.get("payDay")), weekday=True
+                    int(inc_coms.get("payDay", author)), weekday=True
                 )
 
                 await message.channel.send(
@@ -393,13 +388,13 @@ async def on_message(message):
                 await message.delete()
 
                 await message.channel.send(
-                    f"```Student Loan now {inc_coms.sl_toggle('activeSL')}.```"
+                    f"```Student Loan now {inc_coms.sl_toggle('activeSL', author)}.```"
                 )
 
             if msg.startswith(".checkstudentloan"):
                 await message.delete()
 
-                slt = "active" if inc_coms.sl_check("activeSL") else "inactive"
+                slt = "active" if inc_coms.sl_check("activeSL", author) else "inactive"
 
                 await message.channel.send(
                     f"```Payroll details by RELAB: \n    - Student Loan: {slt}```"
@@ -408,9 +403,9 @@ async def on_message(message):
             if msg.startswith(".takehome"):
                 await message.delete()
 
-                takehome = inc_coms.get_takehome()
+                takehome = inc_coms.get_takehome(author)
                 paydate = hand_time.format_a_day(
-                    int(inc_coms.get("payDay")), weekday=True
+                    int(inc_coms.get("payDay", author)), weekday=True
                 )
                 await message.channel.send(
                     f"```Your income after tax is £{takehome} ({paydate}).```"
@@ -420,13 +415,15 @@ async def on_message(message):
                 await message.delete()
 
                 comms = [f"```Payroll details by RELAB:\n"]
-                comms.append(f"    - Gross Salary: £{inc_coms.get('grossSalary')}")
-                comms.append(f"    - Notionals: £{inc_coms.get('notionals')}")
                 comms.append(
-                    f"    - Next Pay Day: {hand_time.format_a_day(int(inc_coms.get('payDay')), weekday=True)}"
+                    f"    - Gross Salary: £{inc_coms.get('grossSalary', author)}"
+                )
+                comms.append(f"    - Notionals: £{inc_coms.get('notionals', author)}")
+                comms.append(
+                    f"    - Next Pay Day: {hand_time.format_a_day(int(inc_coms.get('payDay', author)), weekday=True)}"
                 )
                 comms.append(
-                    f"    - Student Loan: {'active' if inc_coms.sl_check('activeSL') else 'inactive'}```"
+                    f"    - Student Loan: {'active' if inc_coms.sl_check('activeSL', author) else 'inactive'}```"
                 )
 
                 await message.channel.send("\n".join(comms))
@@ -434,7 +431,7 @@ async def on_message(message):
             if msg.startswith(".payslip"):
                 await message.delete()
 
-                slip = inc_coms.get_payslip()
+                slip = inc_coms.get_payslip(author)
 
                 stub = [f"```Payslip by RELAB:"]
                 stub.append(
@@ -446,7 +443,7 @@ async def on_message(message):
                 stub.append(f"{oset}- Tax paid: -£{slip.get('tax', 0)}")
                 stub.append(f"{oset}- Employee NIC: -£{slip.get('nic', 0)}")
 
-                if inc_coms.sl_check("activeSL"):
+                if inc_coms.sl_check("activeSL", author):
                     stub.append(f"{oset}- Student loan paid: -£{slip.get('slt', 0)}")
 
                 stub.append(
