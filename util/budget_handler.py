@@ -12,12 +12,6 @@ class BudgetHandler:
         self._datastore = datastore or Handler()
         self._handletime = HandleTimes()
 
-        if self._datastore.get_value(self._budgetkey) is None:
-            self._datastore.overwrite(db_key=self._budgetkey, db_value={})
-            self.set_threshold()
-            self.reset_archive
-            self._datastore.overwrite_nested([self._budgetkey], "budgets", {})
-
     def set_threshold(self, threshold=0):
         """set the threshold of the budget alert"""
 

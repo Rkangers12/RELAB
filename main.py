@@ -152,12 +152,8 @@ def initialise_user(author):
         # initialise user
         datastore.overwrite_nested([key], author, {})
 
-        # initialise channel keys
         code_id = uuid4().hex[:10]
-        datastore.overwrite_nested([key, author], "REPORTER", f"REPORTER_{code_id}")
-        datastore.overwrite_nested([key, author], "RELAB", f"RELAB_{code_id}")
-
-        setup_db.setup_user(author)
+        setup_db.setup_user(author, code_id)
 
 
 @client.event
@@ -478,7 +474,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 3:
                     name, expiration, limit = components
-                    res = bills_monitor.create(name, expiration, limit)
+                    res = bills_monitor.create(name, expiration, limit, author)
                 else:
                     res = 400
 
@@ -547,7 +543,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    bill = bills_monitor.get(name)
+                    bill = bills_monitor.get(name, author)
                 else:
                     bill = None
 
@@ -566,7 +562,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = bills_monitor.delete(name)
+                    res = bills_monitor.delete(name, author)
 
                     if res == 200:
                         await message.channel.send(f"```Bill {name} was deleted.```")

@@ -9,16 +9,13 @@ class Monitor:
         self._datastore = datastore or Handler()
         self._handletime = HandleTimes()
 
-        if self._datastore.get_value(self._monitor) is None:
-            self._datastore.overwrite(db_key=self._monitor, db_value={})
-
     def check_exists(self, name):
         """check if the object already exists"""
 
         if name in self.get_all:
             return True
 
-    def create(self, name, expiration, limit):
+    def create(self, name, expiration, limit, user):
         """store the object within the database"""
 
         if not self.check_exists(name):
@@ -26,6 +23,7 @@ class Monitor:
                 obj = {
                     "expiration": min(31, int(expiration)),
                     "limit": float(limit),
+                    "user": user,
                 }
             except (IndexError, ValueError):
                 return 404
@@ -66,10 +64,11 @@ class Monitor:
 
         return 204
 
-    def get(self, name):
+    def get(self, name, user):
         """get the object data from the database"""
 
-        return self._datastore.get_nested_value([self._monitor, name])
+        if self.check_exists:
+            return self._datastore.get_nested_value([self._monitor, name])
 
     @property
     def get_all(self):

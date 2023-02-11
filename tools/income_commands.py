@@ -8,9 +8,6 @@ class IncomeCommands:
         self._handletimes = HandleTimes()
         self._datastore = datastore
 
-        if self._datastore.get_value("payrollData") is None:
-            self._datastore.overwrite(db_key="payrollData", db_value={})
-
     # class getters and setters
     @property
     def get_payroll(self):
