@@ -75,4 +75,4 @@ class DatastoreInit:
         self._datastore.overwrite_nested(["users", user], key, {})
         self._datastore.overwrite_nested(["users", user, key], "budgets", {})
         self._datastore.overwrite_nested(["users", user, key], "archive", {})
-        self._datastore.overwrite_nested(["users", user, key], "threshold", {})
+        self._datastore.overwrite_nested(["users", user, key], "threshold", 10)

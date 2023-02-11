@@ -99,15 +99,13 @@ async def on_ready():
         noteTask.note_reporter.start()  # if the task is not already runnning, start.
         print("Booted Background Process #5: Note Reporter - {0.user}".format(client))
 
-    # budgetTask = BudgetsReport(
-    #     channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
-    # )
+    budgetTask = BudgetsReport(intents=intents, client=client)
 
-    # if not budgetTask.budget_reporter.is_running():
-    #     budgetTask.budget_reporter.start()  # if the task is not already runnning, start.
-    #     print(
-    #         "Booted Background Process #6: Budget Reporter - {0.user}\n".format(client)
-    #     )
+    if not budgetTask.budget_reporter.is_running():
+        budgetTask.budget_reporter.start()  # if the task is not already runnning, start.
+        print(
+            "Booted Background Process #6: Budget Reporter - {0.user}\n".format(client)
+        )
 
 
 async def snapshot(message):
@@ -152,7 +150,6 @@ def initialise_user(author):
 async def on_message(message):
 
     msg = message.content
-    bypass = False
     bot_powered = datastore.get_nested_value(["settings", "power"])
 
     if message.author == client.user:
@@ -793,7 +790,7 @@ async def on_message(message):
                 except ValueError:
                     res = 400
                 else:
-                    res = budget_handler.create_budget(name, expiration, limit)
+                    res = budget_handler.create_budget(name, expiration, limit, author)
 
                 if res == 200:
                     await message.channel.send(
@@ -816,7 +813,7 @@ async def on_message(message):
                 except ValueError:
                     res = 400
                 else:
-                    res = budget_handler.modify_budget_limit(name, limit)
+                    res = budget_handler.modify_budget_limit(name, limit, author)
 
                 if res == 200:
                     await message.channel.send(
@@ -839,7 +836,9 @@ async def on_message(message):
                 except ValueError:
                     res = 400
                 else:
-                    res = budget_handler.modify_budget_expiration(name, expiration)
+                    res = budget_handler.modify_budget_expiration(
+                        name, expiration, author
+                    )
 
                 if res == 200:
                     await message.channel.send(
@@ -862,7 +861,7 @@ async def on_message(message):
                 except (ValueError, IndexError):
                     budget = None
                 else:
-                    budget = budget_handler.get_budget(name)
+                    budget = budget_handler.get_budget(name, author)
                     if budget is not None:
                         await message.channel.send(
                             f"```You've spent £{budget.get('spending')} of your £{budget.get('limit')} {name} budget lasting till {budget.get('expiration')}.```"
@@ -876,12 +875,23 @@ async def on_message(message):
             if msg.startswith(".budgets"):
                 await message.delete()
 
-                budgets = budget_handler.get_all_budgets
+                budgets = budget_handler.get_all_budgets(author)
+
+                comms = ["```Budget Information:"]
+                comms.append(
+                    f"Date [{hand_time.format_a_day(datetime.now().day)}] | Request ID [#{str(uuid4().hex[:10])}]\n"
+                )
+
+                if len(budgets) == 0:
+                    comms.append("        - No budgets")
+
                 for budget in budgets:
                     meta = budgets[budget]
-                    await message.channel.send(
-                        f"```You've spent £{meta.get('spending')} of your £{meta.get('limit')}, {budget} budget lasting till {meta.get('expiration')}.```"
+                    comms.append(
+                        f"        - You've spent £{meta.get('spending')} of your £{meta.get('limit')}, {budget} budget lasting till {meta.get('expiration')}."
                     )
+
+                await message.channel.send("\n".join(comms) + "```")
 
             if msg.startswith(".setthreshold"):
                 await message.delete()
@@ -893,7 +903,7 @@ async def on_message(message):
                         "```Error modifying threshold, please use '.setthreshold <value e.g. 10>'.```"
                     )
                 else:
-                    budget_handler.set_threshold(val)
+                    budget_handler.set_threshold(author, val)
 
                     await message.channel.send(
                         f"```Updated budget threshold level alert to £{val}.```"
@@ -902,7 +912,7 @@ async def on_message(message):
             if msg.startswith(".getthreshold"):
                 await message.delete()
 
-                thres = budget_handler.get_threshold
+                thres = budget_handler.get_threshold(author)
                 await message.channel.send(
                     f"```Current budget threshold level alert is £{thres}.```"
                 )
@@ -916,8 +926,8 @@ async def on_message(message):
                 except (ValueError, TypeError):
                     res = 201
                 else:
-                    res = budget_handler.record_spending(name, spending)
-                    budget = budget_handler.get_budget(name)
+                    res = budget_handler.record_spending(name, spending, author)
+                    budget = budget_handler.get_budget(name, author)
 
                 if res != 201:
                     await message.channel.send(
@@ -929,7 +939,7 @@ async def on_message(message):
                         await message.channel.send(
                             f"```Balance expired. You've reached your {name} budget.```"
                         )
-                        budget_handler.archive_budget(name)
+                        budget_handler.archive_budget(name, author)
                     elif res == 204:
                         await message.channel.send(
                             f"```Balance warning. You've spent £{budget.get('spending')} of your £{budget.get('limit')} remaining {name} budget.```"
@@ -950,7 +960,7 @@ async def on_message(message):
                     )
                 else:
                     try:
-                        balance = max(0, budget_handler.get_remaining(name))
+                        balance = max(0, budget_handler.get_remaining(name, author))
                     except TypeError:
                         await message.channel.send(
                             "```Error getting budget balance, please use '.budgetbalance <name e.g. coffee>'```"
@@ -970,7 +980,7 @@ async def on_message(message):
                         "```Error deleting budget, please use '.deletebudget <name e.g. coffee>'```"
                     )
                 else:
-                    res = budget_handler.delete_budget(name)
+                    res = budget_handler.delete_budget(name, author)
                     if res == 200:
                         await message.channel.send(
                             f"```Budget {name} has been deleted.```"
@@ -990,7 +1000,7 @@ async def on_message(message):
                         "```Error archiving budget, please use '.archivebudget <name e.g. coffee>'```"
                     )
                 else:
-                    res = budget_handler.archive_budget(name)
+                    res = budget_handler.archive_budget(name, author)
                     if res != 201:
                         await message.channel.send(
                             f"```Budget {name} has been archived.```"
@@ -1004,7 +1014,7 @@ async def on_message(message):
                 await message.delete()
 
                 await message.channel.send(
-                    f"```Your spending across all active budgets is {budget_handler.budget_spending}.```"
+                    f"```Your spending across all active budgets is {budget_handler.budget_spending(author)}.```"
                 )
 
             if msg.startswith(".checkbudgetexp"):
@@ -1015,7 +1025,7 @@ async def on_message(message):
                 except IndexError:
                     res = 404
                 else:
-                    res = budget_handler.check_expired(name)
+                    res = budget_handler.check_expired(name, author)
 
                     if res in [201, 202]:
                         await message.channel.send(
@@ -1029,7 +1039,7 @@ async def on_message(message):
 
             if msg.startswith(".resetbudgetarchive"):
                 await message.delete()
-                budget_handler.reset_archive
+                budget_handler.reset_archive(author)
                 await message.channel.send("```Reset budget archive.```")
 
             if msg.startswith(".repeatnote") or msg.startswith(".quicknote"):
