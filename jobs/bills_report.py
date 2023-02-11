@@ -1,5 +1,7 @@
 import discord
 import asyncio
+import os
+
 from datetime import time, datetime, timedelta
 from discord.ext import tasks
 
@@ -9,13 +11,12 @@ from util.monitor import Monitor
 
 
 class BillsReport:
-    def __init__(self, channel_id, intents=None, client=None):
+    def __init__(self, intents=None, client=None):
 
         self._datastore = Handler()
         self._ht = HandleTimes()
         self._bm = Monitor("bill", datastore=self._datastore)
 
-        self._channel_id = channel_id
         self._intents = intents or discord.Intents.all()
         self._client = client or discord.Client(intents=self._intents)
 
@@ -24,32 +25,43 @@ class BillsReport:
     async def background_reporter(self):
         """checks if bill payment is coming up and to send out alerts for reminders"""
 
-        channel = self._client.get_channel(self._channel_id)
+        users = self._datastore.get_value("users")
+        for bill_user in users:
 
-        bills = self._bm.get_all
-        for bill in bills:
+            reporter_env = self._datastore.get_nested_value(
+                ["users", bill_user, "REPORTER"]
+            )
+            try:
+                channel = self._client.get_channel(int(os.getenv(reporter_env)))
+            except TypeError:
+                continue
 
-            meta = self._datastore.get_nested_value(["bill", bill])
-            expiration = self._ht.format_a_day(meta["expiration"], True, False)
-            limit = meta["limit"]
+            bills = self._bm.get_all(bill_user)
+            for bill in bills:
 
-            bill_day_ts = self._ht.date_to_ts(expiration)
-            now = self._ht.current_timestamp()
-
-            if bill_day_ts - 86400 * 3 < now < bill_day_ts - 86400 * 2.7:
-                await channel.send(
-                    f"```REMINDER: Your £{limit} {bill.title()} bill is due in 3 days, {expiration}.```"
+                meta = self._datastore.get_nested_value(
+                    ["users", bill_user, "bill", bill]
                 )
+                expiration = self._ht.format_a_day(meta["expiration"], True, False)
+                limit = meta["limit"]
 
-            if bill_day_ts - 86400 * 1 < now < bill_day_ts - 86400 * 0.7:
-                await channel.send(
-                    f"```REMINDER: Your £{limit} {bill.title()} bill is due in 1 day, {expiration}.```"
-                )
+                bill_day_ts = self._ht.date_to_ts(expiration)
+                now = self._ht.current_timestamp()
 
-            if bill_day_ts < now < bill_day_ts + 86400:
-                await channel.send(
-                    f"```Payment of £{limit} made towards {bill.title()} today.```"
-                )
+                if bill_day_ts - 86400 * 3 < now < bill_day_ts - 86400 * 2.7:
+                    await channel.send(
+                        f"```REMINDER: Your £{limit} {bill.title()} bill is due in 3 days, {expiration}.```"
+                    )
+
+                if bill_day_ts - 86400 * 1 < now < bill_day_ts - 86400 * 0.7:
+                    await channel.send(
+                        f"```REMINDER: Your £{limit} {bill.title()} bill is due in 1 day, {expiration}.```"
+                    )
+
+                if bill_day_ts < now < bill_day_ts + 86400:
+                    await channel.send(
+                        f"```Payment of £{limit} made towards {bill.title()} today.```"
+                    )
 
     @tasks.loop(seconds=600)  # TESTING ADJUSTABLE
     async def bill_reporter(self):

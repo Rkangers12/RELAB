@@ -7,10 +7,7 @@ class NotesMonitor(Monitor):
 
         if not self.check_exists(name):
             try:
-                obj = {
-                    "desc": desc,
-                    "day": min(31, int(day)),
-                }
+                obj = {"desc": desc, "day": min(31, int(day))}
             except (IndexError, ValueError):
                 return 404
             else:

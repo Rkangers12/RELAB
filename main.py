@@ -77,13 +77,11 @@ async def on_ready():
             "Booted Background Process #2: Payslip Reporter - {0.user}".format(client)
         )
 
-    # billTask = BillsReport(
-    #     channel_id=int(os.getenv("BILLS_CHANNEL")), intents=intents, client=client
-    # )
+    billTask = BillsReport(intents=intents, client=client)
 
-    # if not billTask.bill_reporter.is_running():
-    #     billTask.bill_reporter.start()  # if the task is not already running, start it.
-    #     print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
+    if not billTask.bill_reporter.is_running():
+        billTask.bill_reporter.start()  # if the task is not already running, start it.
+        print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
 
     # subscriptionTask = SubscriptionsReport(
     #     channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
@@ -494,7 +492,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, limit = components
-                    res = bills_monitor.modify_limit(name, limit)
+                    res = bills_monitor.modify_limit(name, limit, author)
                 else:
                     res = 400
 
@@ -517,7 +515,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, expiration = components
-                    res = bills_monitor.modify_expiration(name, expiration)
+                    res = bills_monitor.modify_expiration(name, expiration, author)
                 else:
                     res = 400
 
@@ -572,7 +570,7 @@ async def on_message(message):
             if msg.startswith(".deleteallbills"):
                 await message.delete()
 
-                outcome = bills_monitor.delete_all
+                outcome = bills_monitor.delete_all(author)
 
                 comms = ["```Bills Information:"]
                 comms.append(
@@ -591,7 +589,7 @@ async def on_message(message):
             if msg.startswith(".bills"):
                 await message.delete()
 
-                bills = bills_monitor.get_all
+                bills = bills_monitor.get_all(author)
 
                 comms = ["```Bills Information:"]
                 comms.append(
