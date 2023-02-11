@@ -95,13 +95,11 @@ async def on_ready():
     #         )
     #     )
 
-    # noteTask = NotesReport(
-    #     channel_id=int(os.getenv("NOTES_CHANNEL")), intents=intents, client=client
-    # )
+    noteTask = NotesReport(intents=intents, client=client)
 
-    # if not noteTask.note_reporter.is_running():
-    #     noteTask.note_reporter.start()  # if the task is not already runnning, start.
-    #     print("Booted Background Process #5: Note Reporter - {0.user}".format(client))
+    if not noteTask.note_reporter.is_running():
+        noteTask.note_reporter.start()  # if the task is not already runnning, start.
+        print("Booted Background Process #5: Note Reporter - {0.user}".format(client))
 
     # budgetTask = BudgetsReport(
     #     channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
@@ -1043,12 +1041,13 @@ async def on_message(message):
                 quick = False if "repeat" in msg else True
                 note_type = "quick" if quick else "repeat"
 
-                if components != 400 and len(components) > 3:
+                if components != 400 and len(components) >= 3:
 
                     name, day = components[:2]
                     desc = " ".join(components[2:])
+                    print(desc)
 
-                    res = notes_monitor.create(name, day, desc, quick)
+                    res = notes_monitor.create(name, day, desc, author, quick=quick)
                 else:
                     res = 400
 
@@ -1069,12 +1068,12 @@ async def on_message(message):
                 await message.delete()
 
                 components = message_sorter(msg)
-                if components != 400 and len(components) > 2:
+                if components != 400 and len(components) >= 2:
 
                     name = components[0]
                     desc = " ".join(components[1:])
 
-                    res = notes_monitor.modify_desc(name, desc)
+                    res = notes_monitor.modify_desc(name, desc, author)
                 else:
                     res = 400
 
@@ -1097,7 +1096,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, day = components
-                    res = notes_monitor.modify_day(name, day)
+                    res = notes_monitor.modify_day(name, day, author)
                 else:
                     res = 400
 
@@ -1120,7 +1119,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    note = notes_monitor.get(name)
+                    note = notes_monitor.get(name, author)
                 else:
                     note = None
 
@@ -1140,7 +1139,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = notes_monitor.delete(name)
+                    res = notes_monitor.delete(name, author)
 
                     if res == 200:
                         await message.channel.send(f"```Note {name} was deleted.```")
@@ -1153,7 +1152,7 @@ async def on_message(message):
             if msg.startswith(".deleteallnotes"):
                 await message.delete()
 
-                outcome = notes_monitor.delete_all
+                outcome = notes_monitor.delete_all(author)
 
                 comms = ["```Notes Information:"]
                 comms.append(
@@ -1172,7 +1171,7 @@ async def on_message(message):
             if msg.startswith(".notes"):
                 await message.delete()
 
-                notes = notes_monitor.get_all
+                notes = notes_monitor.get_all(author)
 
                 comms = ["```Notes Information:"]
                 comms.append(

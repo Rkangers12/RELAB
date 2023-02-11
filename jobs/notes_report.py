@@ -1,5 +1,7 @@
 import discord
 import asyncio
+import os
+
 from datetime import time, datetime, timedelta
 from discord.ext import tasks
 
@@ -9,13 +11,12 @@ from util.monitor_notes import NotesMonitor
 
 
 class NotesReport:
-    def __init__(self, channel_id, intents=None, client=None):
+    def __init__(self, intents=None, client=None):
 
         self._datastore = Handler()
         self._ht = HandleTimes()
         self._nm = NotesMonitor("note", datastore=self._datastore)
 
-        self._channel_id = channel_id
         self._intents = intents or discord.Intents.all()
         self._client = client or discord.Client(intents=self._intents)
 
@@ -24,32 +25,43 @@ class NotesReport:
     async def background_reporter(self):
         """Check if an alert for a note is due"""
 
-        channel = self._client.get_channel(self._channel_id)
+        users = self._datastore.get_value("users")
+        for note_user in users:
 
-        notes = self._nm.get_all
-        for note in notes:
+            reporter_env = self._datastore.get_nested_value(
+                ["users", note_user, "REPORTER"]
+            )
+            try:
+                channel = self._client.get_channel(int(os.getenv(reporter_env)))
+            except TypeError:
+                continue
 
-            meta = self._datastore.get_nested_value(["note", note])
-            day = self._ht.format_a_day(meta["day"])
-            desc = meta["desc"]
+            notes = self._nm.get_all(note_user)
+            for note in notes:
 
-            note_ts = self._ht.date_to_ts(day)
-            now = self._ht.current_timestamp()
-
-            if note_ts - 86400 * 2.7 < now < note_ts - 86400 * 2.4 or True:
-                await channel.send(
-                    f"```ALERT: You are due to be alerted in 3 days for your {note} note: '{desc.capitalize()}'.```"
+                meta = self._datastore.get_nested_value(
+                    ["users", note_user, "note", note]
                 )
+                day = self._ht.format_a_day(meta["day"])
+                desc = meta["desc"]
 
-            if note_ts - 86400 * 0.7 < now < note_ts - 86400 * 0.4 or True:
-                await channel.send(
-                    f"```ALERT: You are due to be alerted in 1 day for your {note} note: '{desc.capitalize()}'.```"
-                )
-            if note_ts < now < note_ts + 86400 or True:
-                await channel.send(
-                    f"```ALERT: Reminding you about your note '{note}'. [1/2]```"
-                )
-                await channel.send(f"```{desc.capitalize()}. [2/2]```")
+                note_ts = self._ht.date_to_ts(day)
+                now = self._ht.current_timestamp()
+
+                if note_ts - 86400 * 2.7 < now < note_ts - 86400 * 2.4:
+                    await channel.send(
+                        f"```ALERT: You are due to be alerted in 3 days for your {note} note: '{desc.capitalize()}'.```"
+                    )
+
+                if note_ts - 86400 * 0.7 < now < note_ts - 86400 * 0.4:
+                    await channel.send(
+                        f"```ALERT: You are due to be alerted in 1 day for your {note} note: '{desc.capitalize()}'.```"
+                    )
+                if note_ts < now < note_ts + 86400:
+                    await channel.send(
+                        f"```ALERT: Reminding you about your note '{note}'. [1/2]```"
+                    )
+                    await channel.send(f"```{desc.capitalize()}. [2/2]```")
 
     @tasks.loop(seconds=600)  # TESTING ADJUSTABLE
     async def note_reporter(self):
