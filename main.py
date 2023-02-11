@@ -5,9 +5,10 @@ from datetime import datetime
 from dotenv import load_dotenv
 from uuid import uuid4
 
-from store.handler import Handler
+from tools.handler import Handler
 
 from tools.income_commands import IncomeCommands
+from tools.initialise_database import DatastoreInit
 from tools.session_commands import SessionCommands
 
 from jobs.bills_report import BillsReport
@@ -32,8 +33,10 @@ client = discord.Client(intents=intents)
 datastore = Handler()
 hand_time = HandleTimes()
 
-studytrack = SessionTrack("study_records", "studying", datastore=datastore)
-gymtrack = SessionTrack("gym_records", "gymming", datastore=datastore)
+setup_db = DatastoreInit(datastore)
+
+studytrack = SessionTrack("studyRecords", "studying", datastore=datastore)
+gymtrack = SessionTrack("gymRecords", "gymming", datastore=datastore)
 
 sesscomms = SessionCommands(
     datastore=datastore, studytrack=studytrack, gymtrack=gymtrack
@@ -51,7 +54,7 @@ async def on_ready():
     print("\nWe have logged in as {0.user}\n".format(client))
 
     summaryTask = SummaryReport(
-        channel_id=int(os.getenv("SESSIONS_CHANNEL")),
+        datastore,
         intents=intents,
         client=client,
         sessions=[
@@ -66,9 +69,7 @@ async def on_ready():
             "Booted Background Process #1: Statistic Reporter - {0.user}".format(client)
         )
 
-    payslipTask = PayslipReport(
-        channel_id=int(os.getenv("PAYSLIP_CHANNEL")), intents=intents, client=client
-    )
+    payslipTask = PayslipReport(datastore, intents=intents, client=client)
 
     if not payslipTask.payslip_reporter.is_running():
         payslipTask.payslip_reporter.start()  # if the task is not already running, start it.
@@ -76,17 +77,13 @@ async def on_ready():
             "Booted Background Process #2: Payslip Reporter - {0.user}".format(client)
         )
 
-    billTask = BillsReport(
-        channel_id=int(os.getenv("BILLS_CHANNEL")), intents=intents, client=client
-    )
+    billTask = BillsReport(intents=intents, client=client)
 
     if not billTask.bill_reporter.is_running():
         billTask.bill_reporter.start()  # if the task is not already running, start it.
         print("Booted Background Process #3: Bill Reporter - {0.user}".format(client))
 
-    subscriptionTask = SubscriptionsReport(
-        channel_id=int(os.getenv("SUBS_CHANNEL")), intents=intents, client=client
-    )
+    subscriptionTask = SubscriptionsReport(intents=intents, client=client)
 
     if not subscriptionTask.subscription_reporter.is_running():
         subscriptionTask.subscription_reporter.start()  # if the task is not already running, start it.
@@ -96,17 +93,13 @@ async def on_ready():
             )
         )
 
-    noteTask = NotesReport(
-        channel_id=int(os.getenv("NOTES_CHANNEL")), intents=intents, client=client
-    )
+    noteTask = NotesReport(intents=intents, client=client)
 
     if not noteTask.note_reporter.is_running():
         noteTask.note_reporter.start()  # if the task is not already runnning, start.
         print("Booted Background Process #5: Note Reporter - {0.user}".format(client))
 
-    budgetTask = BudgetsReport(
-        channel_id=int(os.getenv("BUDGETS_CHANNEL")), intents=intents, client=client
-    )
+    budgetTask = BudgetsReport(intents=intents, client=client)
 
     if not budgetTask.budget_reporter.is_running():
         budgetTask.budget_reporter.start()  # if the task is not already runnning, start.
@@ -130,9 +123,6 @@ async def power(message):
     await message.delete()
 
     setting = "settings"
-    if datastore.get_value(setting, {}) == {}:
-        datastore.overwrite(db_key=setting, db_value={})
-
     power = datastore.get_nested_value([setting, "power"], default=False)
 
     if power:
@@ -143,34 +133,63 @@ async def power(message):
         await message.channel.send("```RELAB has been switched on.```")
 
 
+def initialise_user(author):
+    """initialise the user into the database"""
+
+    key = "users"
+
+    if author not in datastore.get_value(key, {}):
+        # initialise user
+        datastore.overwrite_nested([key], author, {})
+
+        code_id = uuid4().hex[:10]
+        setup_db.setup_user(author, code_id)
+
+
 @client.event
 async def on_message(message):
 
     msg = message.content
-    bypass = False
+    bot_powered = datastore.get_nested_value(["settings", "power"])
 
     if message.author == client.user:
-        if msg.startswith(".payslip"):
-            bypass = True
-        else:
-            return
+        return
 
-    if msg.startswith(".purge") and message.author.id == int(os.getenv("KING_ID")):
-        try:
-            print("Purging")
-            await message.channel.purge(limit=100)
-        except discord.errors.NotFound:
-            print("No messages to purge found")
+    author = str(message.author)
 
-    if message.channel.id == int(os.getenv("BOT_SETTINGS")):
-        if msg.startswith(".power"):
-            await power(message)
+    relab_channel = datastore.get_nested_value(
+        ["users", author, "RELAB"], default="RELAB_0000"
+    )
 
-    bot_powered = datastore.get_nested_value(["settings", "power"])
-    if bot_powered:
-        if message.channel.id == int(os.getenv("SNAPSHOTS_CHANNEL")):
+    if message.author.id == int(os.getenv("KING_ID")):
+
+        if msg.startswith(".purge") and message.author.id:
+            try:
+                print("Purging")
+                await message.channel.purge(limit=100)
+            except discord.errors.NotFound:
+                print("No messages to purge found")
+
+        if message.channel.id == int(os.getenv("BOT_SETTINGS")):
+            if msg.startswith(".power"):
+                await power(message)
+
+        if message.channel.id == int(os.getenv("SNAPSHOTS_CHANNEL")) and bot_powered:
             if msg.startswith(".snapshot"):
                 await snapshot(message)
+
+        if message.channel.id == int(os.getenv("BOT_HELPER")) and bot_powered:
+            if msg.startswith(".channels"):
+                await message.channel.send("```Success```")
+
+                for channel in client.get_all_channels():
+                    print(channel.id, channel.name)
+
+    if bot_powered:
+
+        if message.channel.id == int(os.getenv("ACCESS_CHANNEL")):
+            initialise_user(author)
+            # code to grant user a role
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
 
@@ -290,29 +309,22 @@ async def on_message(message):
 
                 await message.channel.send("\n".join(prompt))
 
-        if message.channel.id == int(os.getenv("BOT_HELPER")):
-            if msg.startswith(".channels"):
-                await message.channel.send("```Success```")
-
-                for channel in client.get_all_channels():
-                    print(channel.id, channel.name)
-
-        if message.channel.id == int(os.getenv("RELAB_CHANNEL")) or bypass:
+        if message.channel.id == int(os.getenv(relab_channel, "0000")):
             if msg.startswith(".study"):
-                await sesscomms.study(message)
+                await sesscomms.study(message, author)
 
             if msg.startswith(".getstudy"):
-                await sesscomms.get_study(message)
+                await sesscomms.get_study(message, author)
 
             if msg.startswith(".gym"):
-                await sesscomms.gym(message)
+                await sesscomms.gym(message, author)
 
             if msg.startswith(".getgym"):
-                await sesscomms.get_gym(message)
+                await sesscomms.get_gym(message, author)
 
             if msg.startswith(".setsalary"):
                 await message.delete()
-                resp = inc_coms.set_payroll(msg, "grossSalary")
+                resp = inc_coms.set_payroll(msg, "grossSalary", author)
 
                 if resp == 200:
                     await message.channel.send("```Gross Salary details updated.```")
@@ -323,12 +335,12 @@ async def on_message(message):
                 await message.delete()
 
                 await message.channel.send(
-                    f"```Payroll details by RELAB: \n    - Gross Salary: £{inc_coms.get('grossSalary')}```"
+                    f"```Payroll details by RELAB: \n    - Gross Salary: £{inc_coms.get('grossSalary', author)}```"
                 )
 
             if msg.startswith(".setnotionals"):
                 await message.delete()
-                resp = inc_coms.set_payroll(msg, "notionals")
+                resp = inc_coms.set_payroll(msg, "notionals", author)
 
                 if resp == 200:
                     await message.channel.send("```Notionals details updated.```")
@@ -339,13 +351,13 @@ async def on_message(message):
                 await message.delete()
 
                 await message.channel.send(
-                    f"```Payroll details by RELAB: \n    - Notionals: £{inc_coms.get('notionals')}```"
+                    f"```Payroll details by RELAB: \n    - Notionals: £{inc_coms.get('notionals', author)}```"
                 )
 
             if msg.startswith(".setpaydate"):
                 await message.delete()
 
-                resp = inc_coms.set_payroll(msg, "payDay")
+                resp = inc_coms.set_payroll(msg, "payDay", author)
 
                 if resp == 200:
                     await message.channel.send("```Pay Date details updated.```")
@@ -356,7 +368,7 @@ async def on_message(message):
                 await message.delete()
 
                 paydate = hand_time.format_a_day(
-                    int(inc_coms.get("payDay")), weekday=True
+                    int(inc_coms.get("payDay", author)), weekday=True
                 )
 
                 await message.channel.send(
@@ -367,13 +379,13 @@ async def on_message(message):
                 await message.delete()
 
                 await message.channel.send(
-                    f"```Student Loan now {inc_coms.sl_toggle('activeSL')}.```"
+                    f"```Student Loan now {inc_coms.sl_toggle('activeSL', author)}.```"
                 )
 
             if msg.startswith(".checkstudentloan"):
                 await message.delete()
 
-                slt = "active" if inc_coms.sl_check("activeSL") else "inactive"
+                slt = "active" if inc_coms.sl_check("activeSL", author) else "inactive"
 
                 await message.channel.send(
                     f"```Payroll details by RELAB: \n    - Student Loan: {slt}```"
@@ -382,9 +394,9 @@ async def on_message(message):
             if msg.startswith(".takehome"):
                 await message.delete()
 
-                takehome = inc_coms.get_takehome()
+                takehome = inc_coms.get_takehome(author)
                 paydate = hand_time.format_a_day(
-                    int(inc_coms.get("payDay")), weekday=True
+                    int(inc_coms.get("payDay", author)), weekday=True
                 )
                 await message.channel.send(
                     f"```Your income after tax is £{takehome} ({paydate}).```"
@@ -394,13 +406,15 @@ async def on_message(message):
                 await message.delete()
 
                 comms = [f"```Payroll details by RELAB:\n"]
-                comms.append(f"    - Gross Salary: £{inc_coms.get('grossSalary')}")
-                comms.append(f"    - Notionals: £{inc_coms.get('notionals')}")
                 comms.append(
-                    f"    - Next Pay Day: {hand_time.format_a_day(int(inc_coms.get('payDay')), weekday=True)}"
+                    f"    - Gross Salary: £{inc_coms.get('grossSalary', author)}"
+                )
+                comms.append(f"    - Notionals: £{inc_coms.get('notionals', author)}")
+                comms.append(
+                    f"    - Next Pay Day: {hand_time.format_a_day(int(inc_coms.get('payDay', author)), weekday=True)}"
                 )
                 comms.append(
-                    f"    - Student Loan: {'active' if inc_coms.sl_check('activeSL') else 'inactive'}```"
+                    f"    - Student Loan: {'active' if inc_coms.sl_check('activeSL', author) else 'inactive'}```"
                 )
 
                 await message.channel.send("\n".join(comms))
@@ -408,7 +422,7 @@ async def on_message(message):
             if msg.startswith(".payslip"):
                 await message.delete()
 
-                slip = inc_coms.get_payslip()
+                slip = inc_coms.get_payslip(author)
 
                 stub = [f"```Payslip by RELAB:"]
                 stub.append(
@@ -420,7 +434,7 @@ async def on_message(message):
                 stub.append(f"{oset}- Tax paid: -£{slip.get('tax', 0)}")
                 stub.append(f"{oset}- Employee NIC: -£{slip.get('nic', 0)}")
 
-                if inc_coms.sl_check("activeSL"):
+                if inc_coms.sl_check("activeSL", author):
                     stub.append(f"{oset}- Student loan paid: -£{slip.get('slt', 0)}")
 
                 stub.append(
@@ -448,7 +462,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 3:
                     name, expiration, limit = components
-                    res = bills_monitor.create(name, expiration, limit)
+                    res = bills_monitor.create(name, expiration, limit, author)
                 else:
                     res = 400
 
@@ -471,7 +485,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, limit = components
-                    res = bills_monitor.modify_limit(name, limit)
+                    res = bills_monitor.modify_limit(name, limit, author)
                 else:
                     res = 400
 
@@ -494,7 +508,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, expiration = components
-                    res = bills_monitor.modify_expiration(name, expiration)
+                    res = bills_monitor.modify_expiration(name, expiration, author)
                 else:
                     res = 400
 
@@ -517,7 +531,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    bill = bills_monitor.get(name)
+                    bill = bills_monitor.get(name, author)
                 else:
                     bill = None
 
@@ -536,7 +550,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = bills_monitor.delete(name)
+                    res = bills_monitor.delete(name, author)
 
                     if res == 200:
                         await message.channel.send(f"```Bill {name} was deleted.```")
@@ -549,7 +563,7 @@ async def on_message(message):
             if msg.startswith(".deleteallbills"):
                 await message.delete()
 
-                outcome = bills_monitor.delete_all
+                outcome = bills_monitor.delete_all(author)
 
                 comms = ["```Bills Information:"]
                 comms.append(
@@ -568,7 +582,7 @@ async def on_message(message):
             if msg.startswith(".bills"):
                 await message.delete()
 
-                bills = bills_monitor.get_all
+                bills = bills_monitor.get_all(author)
 
                 comms = ["```Bills Information:"]
                 comms.append(
@@ -592,7 +606,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 3:
                     name, expiration, limit = components
-                    res = subs_monitor.extend_create(name, expiration, limit)
+                    res = subs_monitor.extend_create(name, expiration, limit, author)
                 else:
                     res = 400
 
@@ -615,7 +629,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, limit = components
-                    res = subs_monitor.modify_limit(name, limit)
+                    res = subs_monitor.modify_limit(name, limit, author)
                 else:
                     res = 400
 
@@ -638,7 +652,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, expiration = components
-                    res = subs_monitor.modify_expiration(name, expiration)
+                    res = subs_monitor.modify_expiration(name, expiration, author)
                 else:
                     res = 400
 
@@ -661,7 +675,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    subscription = subs_monitor.get(name)
+                    subscription = subs_monitor.get(name, author)
                 else:
                     subscription = None
 
@@ -680,7 +694,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = subs_monitor.delete(name)
+                    res = subs_monitor.delete(name, author)
 
                     if res == 200:
                         await message.channel.send(
@@ -695,7 +709,7 @@ async def on_message(message):
             if msg.startswith(".deleteallsubs"):
                 await message.delete()
 
-                outcome = subs_monitor.delete_all
+                outcome = subs_monitor.delete_all(author)
 
                 comms = ["```Subscriptions Information:"]
                 comms.append(
@@ -714,7 +728,7 @@ async def on_message(message):
             if msg.startswith(".subscriptions"):
                 await message.delete()
 
-                subscriptions = subs_monitor.get_all
+                subscriptions = subs_monitor.get_all(author)
 
                 comms = ["```Subscriptions Information:"]
                 comms.append(
@@ -738,7 +752,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = subs_monitor.toggle_subscription(name)
+                    res = subs_monitor.toggle_subscription(name, author)
 
                     if res != 404:
                         await message.channel.send(
@@ -756,7 +770,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = subs_monitor.active(name)
+                    res = subs_monitor.active(name, author)
 
                     if res is not None:
                         await message.channel.send(
@@ -776,7 +790,7 @@ async def on_message(message):
                 except ValueError:
                     res = 400
                 else:
-                    res = budget_handler.create_budget(name, expiration, limit)
+                    res = budget_handler.create_budget(name, expiration, limit, author)
 
                 if res == 200:
                     await message.channel.send(
@@ -799,7 +813,7 @@ async def on_message(message):
                 except ValueError:
                     res = 400
                 else:
-                    res = budget_handler.modify_budget_limit(name, limit)
+                    res = budget_handler.modify_budget_limit(name, limit, author)
 
                 if res == 200:
                     await message.channel.send(
@@ -822,7 +836,9 @@ async def on_message(message):
                 except ValueError:
                     res = 400
                 else:
-                    res = budget_handler.modify_budget_expiration(name, expiration)
+                    res = budget_handler.modify_budget_expiration(
+                        name, expiration, author
+                    )
 
                 if res == 200:
                     await message.channel.send(
@@ -845,7 +861,7 @@ async def on_message(message):
                 except (ValueError, IndexError):
                     budget = None
                 else:
-                    budget = budget_handler.get_budget(name)
+                    budget = budget_handler.get_budget(name, author)
                     if budget is not None:
                         await message.channel.send(
                             f"```You've spent £{budget.get('spending')} of your £{budget.get('limit')} {name} budget lasting till {budget.get('expiration')}.```"
@@ -859,12 +875,23 @@ async def on_message(message):
             if msg.startswith(".budgets"):
                 await message.delete()
 
-                budgets = budget_handler.get_all_budgets
+                budgets = budget_handler.get_all_budgets(author)
+
+                comms = ["```Budget Information:"]
+                comms.append(
+                    f"Date [{hand_time.format_a_day(datetime.now().day)}] | Request ID [#{str(uuid4().hex[:10])}]\n"
+                )
+
+                if len(budgets) == 0:
+                    comms.append("        - No budgets")
+
                 for budget in budgets:
                     meta = budgets[budget]
-                    await message.channel.send(
-                        f"```You've spent £{meta.get('spending')} of your £{meta.get('limit')}, {budget} budget lasting till {meta.get('expiration')}.```"
+                    comms.append(
+                        f"        - You've spent £{meta.get('spending')} of your £{meta.get('limit')}, {budget} budget lasting till {meta.get('expiration')}."
                     )
+
+                await message.channel.send("\n".join(comms) + "```")
 
             if msg.startswith(".setthreshold"):
                 await message.delete()
@@ -876,7 +903,7 @@ async def on_message(message):
                         "```Error modifying threshold, please use '.setthreshold <value e.g. 10>'.```"
                     )
                 else:
-                    budget_handler.set_threshold(val)
+                    budget_handler.set_threshold(author, val)
 
                     await message.channel.send(
                         f"```Updated budget threshold level alert to £{val}.```"
@@ -885,7 +912,7 @@ async def on_message(message):
             if msg.startswith(".getthreshold"):
                 await message.delete()
 
-                thres = budget_handler.get_threshold
+                thres = budget_handler.get_threshold(author)
                 await message.channel.send(
                     f"```Current budget threshold level alert is £{thres}.```"
                 )
@@ -899,8 +926,8 @@ async def on_message(message):
                 except (ValueError, TypeError):
                     res = 201
                 else:
-                    res = budget_handler.record_spending(name, spending)
-                    budget = budget_handler.get_budget(name)
+                    res = budget_handler.record_spending(name, spending, author)
+                    budget = budget_handler.get_budget(name, author)
 
                 if res != 201:
                     await message.channel.send(
@@ -912,7 +939,7 @@ async def on_message(message):
                         await message.channel.send(
                             f"```Balance expired. You've reached your {name} budget.```"
                         )
-                        budget_handler.archive_budget(name)
+                        budget_handler.archive_budget(name, author)
                     elif res == 204:
                         await message.channel.send(
                             f"```Balance warning. You've spent £{budget.get('spending')} of your £{budget.get('limit')} remaining {name} budget.```"
@@ -933,7 +960,7 @@ async def on_message(message):
                     )
                 else:
                     try:
-                        balance = max(0, budget_handler.get_remaining(name))
+                        balance = max(0, budget_handler.get_remaining(name, author))
                     except TypeError:
                         await message.channel.send(
                             "```Error getting budget balance, please use '.budgetbalance <name e.g. coffee>'```"
@@ -953,7 +980,7 @@ async def on_message(message):
                         "```Error deleting budget, please use '.deletebudget <name e.g. coffee>'```"
                     )
                 else:
-                    res = budget_handler.delete_budget(name)
+                    res = budget_handler.delete_budget(name, author)
                     if res == 200:
                         await message.channel.send(
                             f"```Budget {name} has been deleted.```"
@@ -973,7 +1000,7 @@ async def on_message(message):
                         "```Error archiving budget, please use '.archivebudget <name e.g. coffee>'```"
                     )
                 else:
-                    res = budget_handler.archive_budget(name)
+                    res = budget_handler.archive_budget(name, author)
                     if res != 201:
                         await message.channel.send(
                             f"```Budget {name} has been archived.```"
@@ -987,7 +1014,7 @@ async def on_message(message):
                 await message.delete()
 
                 await message.channel.send(
-                    f"```Your spending across all active budgets is {budget_handler.budget_spending}.```"
+                    f"```Your spending across all active budgets is {budget_handler.budget_spending(author)}.```"
                 )
 
             if msg.startswith(".checkbudgetexp"):
@@ -998,7 +1025,7 @@ async def on_message(message):
                 except IndexError:
                     res = 404
                 else:
-                    res = budget_handler.check_expired(name)
+                    res = budget_handler.check_expired(name, author)
 
                     if res in [201, 202]:
                         await message.channel.send(
@@ -1012,7 +1039,7 @@ async def on_message(message):
 
             if msg.startswith(".resetbudgetarchive"):
                 await message.delete()
-                budget_handler.reset_archive
+                budget_handler.reset_archive(author)
                 await message.channel.send("```Reset budget archive.```")
 
             if msg.startswith(".repeatnote") or msg.startswith(".quicknote"):
@@ -1022,12 +1049,13 @@ async def on_message(message):
                 quick = False if "repeat" in msg else True
                 note_type = "quick" if quick else "repeat"
 
-                if components != 400 and len(components) > 3:
+                if components != 400 and len(components) >= 3:
 
                     name, day = components[:2]
                     desc = " ".join(components[2:])
+                    print(desc)
 
-                    res = notes_monitor.create(name, day, desc, quick)
+                    res = notes_monitor.create(name, day, desc, author, quick=quick)
                 else:
                     res = 400
 
@@ -1048,12 +1076,12 @@ async def on_message(message):
                 await message.delete()
 
                 components = message_sorter(msg)
-                if components != 400 and len(components) > 2:
+                if components != 400 and len(components) >= 2:
 
                     name = components[0]
                     desc = " ".join(components[1:])
 
-                    res = notes_monitor.modify_desc(name, desc)
+                    res = notes_monitor.modify_desc(name, desc, author)
                 else:
                     res = 400
 
@@ -1076,7 +1104,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 2:
                     name, day = components
-                    res = notes_monitor.modify_day(name, day)
+                    res = notes_monitor.modify_day(name, day, author)
                 else:
                     res = 400
 
@@ -1099,7 +1127,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    note = notes_monitor.get(name)
+                    note = notes_monitor.get(name, author)
                 else:
                     note = None
 
@@ -1119,7 +1147,7 @@ async def on_message(message):
                 components = message_sorter(msg)
                 if components != 400 and len(components) == 1:
                     name = components[0]
-                    res = notes_monitor.delete(name)
+                    res = notes_monitor.delete(name, author)
 
                     if res == 200:
                         await message.channel.send(f"```Note {name} was deleted.```")
@@ -1132,7 +1160,7 @@ async def on_message(message):
             if msg.startswith(".deleteallnotes"):
                 await message.delete()
 
-                outcome = notes_monitor.delete_all
+                outcome = notes_monitor.delete_all(author)
 
                 comms = ["```Notes Information:"]
                 comms.append(
@@ -1151,7 +1179,7 @@ async def on_message(message):
             if msg.startswith(".notes"):
                 await message.delete()
 
-                notes = notes_monitor.get_all
+                notes = notes_monitor.get_all(author)
 
                 comms = ["```Notes Information:"]
                 comms.append(

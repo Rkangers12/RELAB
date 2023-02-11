@@ -1,4 +1,4 @@
-from store.handler import Handler
+from tools.handler import Handler
 from util.handle_times import HandleTimes
 
 
@@ -9,39 +9,35 @@ class Monitor:
         self._datastore = datastore or Handler()
         self._handletime = HandleTimes()
 
-        if self._datastore.get_value(self._monitor) is None:
-            self._datastore.overwrite(db_key=self._monitor, db_value={})
-
-    def check_exists(self, name):
+    def check_exists(self, name, user):
         """check if the object already exists"""
 
-        if name in self.get_all:
+        if name in self.get_all(user):
             return True
 
-    def create(self, name, expiration, limit):
+    def create(self, name, expiration, limit, user):
         """store the object within the database"""
 
-        if not self.check_exists(name):
+        if not self.check_exists(name, user):
             try:
-                obj = {
-                    "expiration": min(31, int(expiration)),
-                    "limit": float(limit),
-                }
+                obj = {"expiration": min(31, int(expiration)), "limit": float(limit)}
             except (IndexError, ValueError):
                 return 404
             else:
-                self._datastore.overwrite_nested([self._monitor], name, obj)
+                self._datastore.overwrite_nested(
+                    ["users", user, self._monitor], name, obj
+                )
                 return 200
 
         return 201
 
-    def modify_limit(self, name, limit):
+    def modify_limit(self, name, limit, user):
         """change the object limit to new value"""
 
-        if self.check_exists(name):
+        if self.check_exists(name, user):
             try:
                 self._datastore.overwrite_nested(
-                    [self._monitor, name], "limit", float(limit)
+                    ["users", user, self._monitor, name], "limit", float(limit)
                 )
             except ValueError:
                 return 404
@@ -50,14 +46,14 @@ class Monitor:
 
         return 204
 
-    def modify_expiration(self, name, expiration):
+    def modify_expiration(self, name, expiration, user):
         """change the object expiration to new value"""
 
-        if self.check_exists(name):
+        if self.check_exists(name, user):
             try:
                 exp = min(31, int(expiration))
                 self._datastore.overwrite_nested(
-                    [self._monitor, name], "expiration", exp
+                    ["users", user, self._monitor, name], "expiration", exp
                 )
             except ValueError:
                 return 404
@@ -66,35 +62,36 @@ class Monitor:
 
         return 204
 
-    def get(self, name):
+    def get(self, name, user):
         """get the object data from the database"""
 
-        return self._datastore.get_nested_value([self._monitor, name])
+        if self.check_exists(name, user):
+            return self._datastore.get_nested_value(
+                ["users", user, self._monitor, name]
+            )
 
-    @property
-    def get_all(self):
+    def get_all(self, user):
         """get all of object within the database"""
 
-        return self._datastore.get_nested_value([self._monitor])
+        return self._datastore.get_nested_value(["users", user, self._monitor])
 
-    def delete(self, name):
+    def delete(self, name, user):
         """delete the object from the database"""
 
-        if self.check_exists(name):
-            self._datastore.delete_nested([self._monitor], name)
+        if self.check_exists(name, user):
+            self._datastore.delete_nested(["users", user, self._monitor], name)
             return 200
         else:
             return 201
 
-    @property
-    def delete_all(self):
+    def delete_all(self, user):
         """delete all the objects within the database"""
 
-        names = self.get_all.keys()
+        names = self.get_all(user).keys()
         outcome = {"deleted": [], "failed": []}
 
         for name in names:
-            if self.delete(name) == 200:
+            if self.delete(name, user) == 200:
                 outcome["deleted"].append(name)
             else:
                 outcome["failed"].append(name)

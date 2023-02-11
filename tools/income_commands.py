@@ -7,97 +7,78 @@ class IncomeCommands:
 
         self._handletimes = HandleTimes()
         self._datastore = datastore
-
-        if self._datastore.get_value("payrollData") is None:
-            self._datastore.overwrite(db_key="payrollData", db_value={})
-
-    # class getters and setters
-    @property
-    def get_payroll(self):
-        """get the payroll data from database"""
-
-        return self._datastore.get_value("payrollData", {})
-
-    def get_payroll_value(self, payroll_key, default=None):
-        """get the value of the requested payroll data"""
-
-        return self.get_payroll.get(payroll_key, default)
-
-    def set_payroll_value(self, payroll_key, payroll_value):
-        """set the payroll value"""
-
-        db = self._datastore.get()
-        payroll = db.get("payrollData", {})
-        payroll[payroll_key] = payroll_value
-        self._datastore.write_all(db)
+        self._key = "payrollData"
 
     # class methods
-    def set_payroll(self, content, payroll_key):
+    def set_payroll(self, content, key, user):
         """store the data for the payroll within the database"""
 
         try:
-            payroll_value = float(content.split(" ")[1])
+            val = float(content.split(" ")[1])
         except (IndexError, ValueError):
             return 404
 
-        if payroll_key == "payDay":
-            payroll_value = min(31, payroll_value)
+        if key == "payDay":
+            val = int(min(31, val))
 
-        self.set_payroll_value(payroll_key, payroll_value)
+        self._datastore.overwrite_nested(["users", user, self._key], key, val)
 
         return 200
 
-    def get(self, payroll_key):
+    def get(self, key, user):
         """get individual data within payroll from database"""
 
-        val = self.get_payroll_value(payroll_key, default=0)
+        val = self._datastore.get_nested_value(["users", user, self._key, key])
 
         return val
 
-    def sl_toggle(self, slt_key):
+    def sl_toggle(self, slt_key, user):
         """toggle student loan setting"""
 
-        loan_setting = self.get_payroll_value(slt_key, default=False)
+        loan_setting = self._datastore.get_nested_value(
+            ["users", user, self._key, slt_key]
+        )
         setting = "active"
 
         if loan_setting:
-            self.set_payroll_value(slt_key, False)
+            self._datastore.overwrite_nested(["users", user, self._key], slt_key, False)
             setting = "inactive"
         else:
-            self.set_payroll_value(slt_key, True)
+            self._datastore.overwrite_nested(["users", user, self._key], slt_key, True)
 
         return setting
 
-    def sl_check(self, slt_key):
+    def sl_check(self, slt_key, user):
         """check student loan setting"""
 
-        return self.get_payroll_value(slt_key, default=False)
+        return self._datastore.get_nested_value(["users", user, self._key, slt_key])
 
-    def get_takehome(self):
+    def get_takehome(self, user):
         """retrieve a breakdow n of the take home pay for the user"""
 
         self._incomehandle = IncomeHandle(
-            self.get("grossSalary"), notionals=self.get("notionals")
+            self.get("grossSalary", user), notionals=self.get("notionals", user)
         )
 
-        return self._incomehandle.get_take_home(student_loan=self.sl_check("activeSL"))
+        return self._incomehandle.get_take_home(
+            student_loan=self.sl_check("activeSL", user)
+        )
 
-    def get_payslip(self):
+    def get_payslip(self, user):
         """retrieve payslip details including gross, nic, tax, slt, takehome"""
 
-        gross = self.get("grossSalary")
-        self._inc_hand = IncomeHandle(gross, notionals=self.get("notionals"))
+        gross = self.get("grossSalary", user)
+        self._inc_hand = IncomeHandle(gross, notionals=self.get("notionals", user))
 
+        student = self.sl_check("activeSL", user)
         payslip = {
             "gross": gross,
             "tax": self._inc_hand.get_tax,
             "nic": self._inc_hand.get_nic,
-            "takehome": self._inc_hand.get_take_home(
-                student_loan=self.sl_check("activeSL")
-            ),
+            "takehome": self._inc_hand.get_take_home(student_loan=student),
         }
 
-        if self.sl_check("activeSL"):
+        if student:
             payslip["slt"] = self._inc_hand.get_slt
 
         return payslip

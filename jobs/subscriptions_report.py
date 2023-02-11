@@ -1,9 +1,11 @@
 import discord
 import asyncio
+import os
+
 from datetime import time, datetime, timedelta
 from discord.ext import tasks
 
-from store.handler import Handler
+from tools.handler import Handler
 from util.handle_times import HandleTimes
 from util.monitor_subscriptions import SubscriptionsMonitor
 
@@ -12,13 +14,12 @@ class SubscriptionsReport:
 
     _KEY = "subscriptionsData"
 
-    def __init__(self, channel_id, intents=None, client=None):
+    def __init__(self, intents=None, client=None):
 
         self._datastore = Handler()
         self._ht = HandleTimes()
         self._sm = SubscriptionsMonitor("subscription", datastore=self._datastore)
 
-        self._channel_id = channel_id
         self._intents = intents or discord.Intents.all()
         self._client = client or discord.Client(intents=self._intents)
 
@@ -27,35 +28,46 @@ class SubscriptionsReport:
     async def background_reporter(self):
         """checks if subscription payment is coming up and to send out alerts for reminders"""
 
-        channel = self._client.get_channel(self._channel_id)
+        users = self._datastore.get_value("users")
+        for sub_user in users:
 
-        subscriptions = self._sm.get_all
-        for sub in subscriptions:
-
-            if not self._sm.active(sub):
+            reporter_env = self._datastore.get_nested_value(
+                ["users", sub_user, "REPORTER"]
+            )
+            try:
+                channel = self._client.get_channel(int(os.getenv(reporter_env)))
+            except TypeError:
                 continue
 
-            meta = self._datastore.get_nested_value(["subscription", sub])
-            expiration = self._ht.format_a_day(meta["expiration"], True, False)
-            limit = meta["limit"]
+            subscriptions = self._sm.get_all(sub_user)
+            for sub in subscriptions:
 
-            sub_day_ts = self._ht.date_to_ts(expiration)
-            now = self._ht.current_timestamp()
+                if not self._sm.active(sub, sub_user):
+                    continue
 
-            if sub_day_ts - 86400 * 3 < now < sub_day_ts - 86400 * 2.7:
-                await channel.send(
-                    f"```REMINDER: Your £{limit} {sub.title()} subscription is due in 3 days, {expiration}.```"
+                meta = self._datastore.get_nested_value(
+                    ["users", sub_user, "subscription", sub]
                 )
+                expiration = self._ht.format_a_day(meta["expiration"], True, False)
+                limit = meta["limit"]
 
-            if sub_day_ts - 86400 * 1 < now < sub_day_ts - 86400 * 0.7:
-                await channel.send(
-                    f"```REMINDER: Your £{limit} {sub.title()} subscription is due in 1 day, {expiration}.```"
-                )
+                sub_day_ts = self._ht.date_to_ts(expiration)
+                now = self._ht.current_timestamp()
 
-            if sub_day_ts < now < sub_day_ts + 86400:
-                await channel.send(
-                    f"```Payment of £{limit} made on your {sub.title()} subscription today.```"
-                )
+                if sub_day_ts - 86400 * 3 < now < sub_day_ts - 86400 * 2.7:
+                    await channel.send(
+                        f"```REMINDER: Your £{limit} {sub.title()} subscription is due in 3 days, {expiration}.```"
+                    )
+
+                if sub_day_ts - 86400 * 1 < now < sub_day_ts - 86400 * 0.7:
+                    await channel.send(
+                        f"```REMINDER: Your £{limit} {sub.title()} subscription is due in 1 day, {expiration}.```"
+                    )
+
+                if sub_day_ts < now < sub_day_ts + 86400:
+                    await channel.send(
+                        f"```Payment of £{limit} made on your {sub.title()} subscription today.```"
+                    )
 
     @tasks.loop(seconds=600)
     async def subscription_reporter(self):
