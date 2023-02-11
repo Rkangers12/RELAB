@@ -16,23 +16,29 @@ class SessionTrack:
         session = {"start": self._handletime.current_timestamp()}
 
         self._datastore.overwrite_nested(
-            ["sessions", user], self._action, db_value=True
+            ["users", user, "sessions"], self._action, db_value=True
         )
-        self._datastore.overwrite_nested(["sessions", user], "currentSession", session)
+        self._datastore.overwrite_nested(
+            ["users", user, "sessions"], "currentSession", session
+        )
 
     def deactivate(self, user):
         """deactivate session mode and record end of session"""
 
-        session = self._datastore.get_nested_value(["sessions", user, "currentSession"])
+        session = self._datastore.get_nested_value(
+            ["users", user, "sessions", "currentSession"]
+        )
         session["finish"] = self._handletime.current_timestamp()
 
         self._datastore.overwrite_nested(
-            ["sessions", user], self._action, db_value=False
+            ["users", user, "sessions"], self._action, db_value=False
         )
         self.store_session(session, user)
 
         # re-initialise current_session
-        self._datastore.overwrite_nested(["sessions", user], "currentSession", {})
+        self._datastore.overwrite_nested(
+            ["users", user, "sessions"], "currentSession", {}
+        )
 
         return str(self._handletime.get_timedelta(session["finish"], session["start"]))
 
@@ -43,21 +49,21 @@ class SessionTrack:
         datestamp = self._handletime.convert_timestamp(timestamp, "date")
 
         records = self._datastore.get_nested_value(
-            ["sessions", user, self._record],
+            ["users", user, "sessions", self._record],
             default={},
         )
         today_record = records.get(datestamp, [])
         today_record.append(session)
 
         self._datastore.overwrite_nested(
-            ["sessions", user, self._record], datestamp, db_value=today_record
+            ["users", user, "sessions", self._record], datestamp, db_value=today_record
         )
 
     def get_session_start(self, user):
         """get the current session's starting time"""
 
         current_start = self._datastore.get_nested_value(
-            ["sessions", user, "currentSession", "start"]
+            ["users", user, "sessions", "currentSession", "start"]
         )
         return self._handletime.convert_timestamp(stamp=current_start)
 
@@ -69,7 +75,7 @@ class SessionTrack:
         )
 
         sessions = self._datastore.get_nested_value(
-            ["sessions", user, self._record, datestamp]
+            ["users", user, "sessions", self._record, datestamp]
         )
 
         hour_tally = self._handletime.get_timedelta(0, 0)

@@ -10,7 +10,9 @@ class SessionCommands:
 
         await message.delete()
 
-        if not self._datastore.get_nested_value(["sessions", user, "studying"]):
+        if not self._datastore.get_nested_value(
+            ["users", user, "sessions", "studying"]
+        ):
             self._studytrack.activate(user)
             await message.channel.send("```Study Mode Activated...```")
 
@@ -25,7 +27,7 @@ class SessionCommands:
 
         await message.delete()
 
-        if self._datastore.get_nested_value(["sessions", user, "studying"]):
+        if self._datastore.get_nested_value(["users", user, "sessions", "studying"]):
             await message.channel.send(
                 f"```You began studying: {self._studytrack.get_session_start(user)}```"
             )
@@ -38,7 +40,7 @@ class SessionCommands:
 
         await message.delete()
 
-        if not self._datastore.get_nested_value(["sessions", user, "gymming"]):
+        if not self._datastore.get_nested_value(["users", user, "sessions", "gymming"]):
             self._gymtrack.activate(user)
             await message.channel.send("```Gym Session Activated...```")
 
@@ -53,7 +55,7 @@ class SessionCommands:
 
         await message.delete()
 
-        if self._datastore.get_nested_value(["sessions", user, "gymming"]):
+        if self._datastore.get_nested_value(["users", user, "sessions", "gymming"]):
             await message.channel.send(
                 f"```You began gymming: {self._gymtrack.get_session_start(user)}```"
             )

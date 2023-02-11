@@ -57,11 +57,13 @@ class SummaryReport:
     async def background_reporter(self):
         """checks if a period has come to an end to provide a summary on each session"""
 
-        for session_user in self._datastore.get_value("sessions"):
+        users = self._datastore.get_value("users")
+        for session_user in users:
 
             reporter_env = self._datastore.get_nested_value(
                 ["users", session_user, "REPORTER"]
             )
+
             try:
                 channel = self._client.get_channel(int(os.getenv(reporter_env)))
             except TypeError:
