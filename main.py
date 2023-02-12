@@ -278,13 +278,10 @@ async def on_message(message):
                 prompt.append("Command Channel: relab\n")
 
                 prompt.append(
-                    "    .createbill <name e.g. rent> ‹exp e.g. 14> <limit e.g. 50>"
+                    "    .repeatnote [re-occuring] <name e.g. Transfer> <day e.g. 13> <desc e.g. Transfer money to monzo>"
                 )
                 prompt.append(
-                    "    .repeatnote <name e.g. Transfer> <day e.g. 13> <desc e.g. Transfer money to monzo>"
-                )
-                prompt.append(
-                    "    .quicknote <name e.g. Transfer> <day e.g. 13> <desc e.g. Transfer money to monzo>"
+                    "    .quicknote [one-time] <name e.g. Transfer> <day e.g. 13> <desc e.g. Transfer money to monzo>"
                 )
                 prompt.append(
                     "    .notedesc <name e.g. Transfer> <desc e.g. Transfer money to monzo>"
