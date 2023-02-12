@@ -271,6 +271,33 @@ async def on_message(message):
 
                 await message.channel.send("\n".join(prompt))
 
+            if msg.startswith(".helpnotes"):
+                await message.delete()
+
+                prompt = ["```Note Command Prompt Help:"]
+                prompt.append("Command Channel: relab\n")
+
+                prompt.append(
+                    "    .createbill <name e.g. rent> ‹exp e.g. 14> <limit e.g. 50>"
+                )
+                prompt.append(
+                    "    .repeatnote <name e.g. Transfer> <day e.g. 13> <desc e.g. Transfer money to monzo>"
+                )
+                prompt.append(
+                    "    .quicknote <name e.g. Transfer> <day e.g. 13> <desc e.g. Transfer money to monzo>"
+                )
+                prompt.append(
+                    "    .notedesc <name e.g. Transfer> <desc e.g. Transfer money to monzo>"
+                )
+                prompt.append("    .noteday <name e.g. Transfer> <day e.g. 13>")
+                prompt.append("    .retrievenote <name e.g. transfer>")
+                prompt.append("    .notes")
+                prompt.append("    .deletenote <name e.g. transfer>")
+                prompt.append("    .deleteallnotes")
+                prompt.append("    .helpnotes```")
+
+                await message.channel.send("\n".join(prompt))
+
             if msg.startswith(".helpsubscriptions"):
                 await message.delete()
 
