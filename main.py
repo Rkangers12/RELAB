@@ -145,6 +145,8 @@ def initialise_user(author):
         code_id = uuid4().hex[:10]
         setup_db.setup_user(author, code_id)
 
+        return True
+
 
 @client.event
 async def on_message(message):
@@ -189,10 +191,15 @@ async def on_message(message):
 
         if message.channel.id == int(os.getenv("ACCESS_CHANNEL")):
             await message.delete()
-            await message.channel.send(
-                f"```Process to register {author} has begun. Please be patient :)```"
-            )
-            initialise_user(author)
+
+            if initialise_user(author):
+                await message.channel.send(
+                    f"```Process to register {author} has begun. Please be patient :)```"
+                )
+                channel = client.get_channel(int(os.getenv("WAITING_CHANNEL")))
+                await channel.send(
+                    f"```{author} has joined the waiting list to join RELAB.```"
+                )
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
 
