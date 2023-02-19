@@ -58,6 +58,11 @@ class PayslipReport:
         users = self._datastore.get_value("users")
         for payroll_user in users:
 
+            pay_date = int(self._ic.get("payDay", payroll_user))
+            if pay_date == 0:
+                print("exiting", payroll_user)
+                continue
+
             reporter_env = self._datastore.get_nested_value(
                 ["users", payroll_user, "REPORTER"]
             )
@@ -66,9 +71,7 @@ class PayslipReport:
             except TypeError:
                 continue
 
-            payday = self._ht.format_a_day(
-                int(self._ic.get("payDay", payroll_user)), weekday=True
-            )
+            payday = self._ht.format_a_day(pay_date, weekday=True)
             paydate_ts = self.get_paydate_timestamp(payday)
 
             now = self._ht.current_timestamp()
