@@ -14,7 +14,6 @@ from tools.income_commands import IncomeCommands
 class PayslipReport:
     def __init__(self, datastore, intents=None, client=None):
 
-        self._datastore = Handler()
         self._ht = HandleTimes()
         self._datastore = datastore
 

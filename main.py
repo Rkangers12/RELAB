@@ -17,12 +17,14 @@ from jobs.notes_report import NotesReport
 from jobs.payslip_report import PayslipReport
 from jobs.subscriptions_report import SubscriptionsReport
 from jobs.summary_report import SummaryReport
+from jobs.travel_report import TravelReport
 
 from util.budget_handler import BudgetHandler
 from util.handle_times import HandleTimes
 from util.monitor import Monitor
 from util.monitor_notes import NotesMonitor
 from util.monitor_subscriptions import SubscriptionsMonitor
+from util.monitor_travel import TravelMonitor
 from util.session_tracker import SessionTrack
 
 
@@ -47,6 +49,7 @@ budget_handler = BudgetHandler(datastore=datastore)
 bills_monitor = Monitor("bill", datastore=datastore)
 notes_monitor = NotesMonitor("note", datastore=datastore)
 subs_monitor = SubscriptionsMonitor("subscription", datastore=datastore)
+travel_monitor = TravelMonitor(datastore=datastore)
 
 
 @client.event
@@ -103,8 +106,14 @@ async def on_ready():
 
     if not budgetTask.budget_reporter.is_running():
         budgetTask.budget_reporter.start()  # if the task is not already runnning, start.
+        print("Booted Background Process #6: Budget Reporter - {0.user}".format(client))
+
+    travelTask = TravelReport(datastore, intents=intents, client=client)
+
+    if not travelTask.travel_reporter.is_running():
+        travelTask.travel_reporter.start()  # if the task is not already runnning, start.
         print(
-            "Booted Background Process #6: Budget Reporter - {0.user}\n".format(client)
+            "Booted Background Process #7: Travel Reporter - {0.user}\n".format(client)
         )
 
 
@@ -152,9 +161,17 @@ def initialise_user(author):
 async def on_message(message):
 
     msg = message.content
+
     bot_powered = datastore.get_nested_value(["settings", "power"])
+    tfl_channel = int(os.getenv("TFL_CHANNEL"))
 
     if message.author == client.user:
+        if msg.startswith(".purge") and message.channel.id == tfl_channel:
+            try:
+                print("Purging")
+                await message.channel.purge(limit=100)
+            except discord.errors.NotFound:
+                print("No messages to purge found.")
         return
 
     author = str(message.author)
@@ -206,15 +223,15 @@ async def on_message(message):
             if msg.startswith(".helpcommands"):
                 await message.delete()
 
-                prompt = ["```Command Prompt Help:"]
+                prompt = ["```Command Prompt Help:\n"]
                 prompt.append("Command Channel: snapshots")
                 prompt.append("    .snapshot\n")
 
                 prompt.append("Command Channel: bot-settings")
                 prompt.append("    .power [toggle]\n")
 
-                prompt.append("Command Channel: any")
-                prompt.append("    .purge [deletes 100 messages at a time]```")
+                prompt.append("Command Channel: tfl-reporter")
+                prompt.append("    .service <name e.g. DLR>```")
 
                 await message.channel.send("\n".join(prompt))
 
@@ -342,6 +359,26 @@ async def on_message(message):
                 prompt.append("    .helpbudget```")
 
                 await message.channel.send("\n".join(prompt))
+
+        if message.channel.id == tfl_channel:
+
+            if msg.startswith(".service"):
+                await message.delete()
+
+                try:
+                    name = msg.split(" ")[1]
+                    res = travel_monitor.service(name)
+                except (IndexError, ValueError):
+                    res = 400
+
+                if res != 400:
+                    await message.channel.send(
+                        f"```{res['name']} [ {res['status']}] - '{res['message']}'```"
+                    )
+                else:
+                    await message.channel.send(
+                        f"```Couldn't find provided service, ensure name is exact match as above '.service <name e.g. Jubilee>'```"
+                    )
 
         if message.channel.id == int(os.getenv(relab_channel, "0000")):
             if msg.startswith(".study"):
