@@ -1,6 +1,9 @@
 from bs4 import BeautifulSoup
 import requests
 
+from datetime import datetime
+from uuid import uuid4
+
 from tools.handler import Handler
 from util.handle_times import HandleTimes
 
@@ -94,3 +97,22 @@ class TravelMonitor:
             return self._datastore.get_nested_value(["services", name])
         else:
             return 400
+
+    @property
+    def request(self):
+        """refresh the service with a clean output message"""
+
+        self.constructor
+        tfl_data = self._datastore.get_value("services")
+        now_ts = self._handletime.current_timestamp()
+
+        comm = [f"```TFL Services Status Update:"]
+        comm.append(
+            f"Date [{self._handletime.convert_timestamp(now_ts)}] | TFL Update ID [#{str(uuid4().hex[:10])}]\n"
+        )
+
+        for service in tfl_data:
+            meta = tfl_data[service]
+            comm.append(f"Service: {meta['name']} [ {meta['status']}]")
+
+        return ("\n").join(comm) + "```"

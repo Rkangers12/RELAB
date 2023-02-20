@@ -232,6 +232,7 @@ async def on_message(message):
 
                 prompt.append("Command Channel: tfl-reporter")
                 prompt.append("    .service <name e.g. DLR>```")
+                prompt.append("    .tflrefresh```")
 
                 await message.channel.send("\n".join(prompt))
 
@@ -379,6 +380,11 @@ async def on_message(message):
                     await message.channel.send(
                         f"```Couldn't find provided service, ensure name is exact match as above '.service <name e.g. Jubilee>'```"
                     )
+
+            if msg.startswith(".tflrefresh"):
+                await message.delete()
+
+                await message.channel.send(travel_monitor.request)
 
         if message.channel.id == int(os.getenv(relab_channel, "0000")):
             if msg.startswith(".study"):
