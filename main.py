@@ -231,7 +231,7 @@ async def on_message(message):
                 prompt.append("    .power [toggle]\n")
 
                 prompt.append("Command Channel: tfl-reporter")
-                prompt.append("    .service <name e.g. DLR>```")
+                prompt.append("    .service <name e.g. DLR>")
                 prompt.append("    .tflrefresh```")
 
                 await message.channel.send("\n".join(prompt))
