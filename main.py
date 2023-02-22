@@ -157,6 +157,22 @@ def initialise_user(author):
         return True
 
 
+async def initiliase_channel(author):
+    """initialise the relab and reporting channel for user"""
+
+    print(client.get_channel(int(os.getenv("RELAB_ab13cfb40f"))))
+    print(author)
+
+    user_code = author[-4:]
+
+    for guild in client.guilds:
+        relab = guild.get_channel(1032317899387453621)
+        reporter = guild.get_channel(1073631303703998515)
+
+        await guild.create_text_channel(f"relab-{user_code}", category=relab)
+        await guild.create_text_channel(f"reporter-{user_code}", category=reporter)
+
+
 @client.event
 async def on_message(message):
 
@@ -217,6 +233,8 @@ async def on_message(message):
                 await channel.send(
                     f"```{author} has joined the waiting list to join RELAB.```"
                 )
+
+                await initiliase_channel(author)
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
 
