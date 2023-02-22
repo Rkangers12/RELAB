@@ -166,8 +166,8 @@ async def initiliase_channel(author):
     user_code = author[-4:]
 
     for guild in client.guilds:
-        relab = guild.get_channel(1032317899387453621)
-        reporter = guild.get_channel(1073631303703998515)
+        relab = guild.get_channel(int(os.getenv('RELAB_CAT')))  # relab category
+        reporter = guild.get_channel(int(os.getenv('REPORTER_CATA')))  # reporter category
 
         await guild.create_text_channel(f"relab-{user_code}", category=relab)
         await guild.create_text_channel(f"reporter-{user_code}", category=reporter)
