@@ -32,7 +32,7 @@ class NotesReport:
                 ["users", note_user, "REPORTER"]
             )
             try:
-                channel = self._client.get_channel(int(os.getenv(reporter_env)))
+                channel = self._client.get_channel(reporter_env)
             except TypeError:
                 continue
 
