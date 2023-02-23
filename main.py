@@ -160,17 +160,44 @@ def initialise_user(author):
 async def initiliase_channel(author):
     """initialise the relab and reporting channel for user"""
 
-    print(client.get_channel(int(os.getenv("RELAB_ab13cfb40f"))))
-    print(author)
-
-    user_code = author[-4:]
+    user_code = str(author)[-4:]
 
     for guild in client.guilds:
-        relab = guild.get_channel(int(os.getenv('RELAB_CAT')))  # relab category
-        reporter = guild.get_channel(int(os.getenv('REPORTER_CATA')))  # reporter category
 
-        await guild.create_text_channel(f"relab-{user_code}", category=relab)
-        await guild.create_text_channel(f"reporter-{user_code}", category=reporter)
+        # categories
+        relab = guild.get_channel(int(os.getenv("RELAB_CAT")))
+        reporter = guild.get_channel(int(os.getenv("REPORTER_CAT")))
+        
+        permissions = discord.PermissionOverwrite(
+            send_messages=True,
+            view_channel=True,
+            read_message_history=True,
+            create_public_threads=False,
+            create_private_threads=False,
+            attach_files=False,
+            use_external_stickers=False,
+            use_external_emojis=False,
+            manage_messages=True,
+        )
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            author: permissions,
+        }
+
+        await guild.create_text_channel(
+            f"relab-{user_code}", category=relab, overwrites=overwrites
+        )
+        await guild.create_text_channel(
+            f"reporter-{user_code}", category=reporter, overwrites=overwrites
+        )
+
+        # retrieve the role 'user' object
+        user_role = guild.get_role(int(os.getenv("ROLE_USER")))
+
+        # retrieve the 'member' object of the message sender
+        member = guild.get_member(author.id)
+
+        await member.add_roles(user_role)
 
 
 @client.event
@@ -234,7 +261,7 @@ async def on_message(message):
                     f"```{author} has joined the waiting list to join RELAB.```"
                 )
 
-                await initiliase_channel(author)
+            await initiliase_channel(message.author)
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
 
