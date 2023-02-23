@@ -26,11 +26,6 @@ class DatastoreInit:
         # initialise the user
         self._datastore.overwrite_nested(["users"], user, {})
 
-        self._datastore.overwrite_nested(
-            ["users", user], "REPORTER", f"REPORTER_{unique_id}"
-        )
-        self._datastore.overwrite_nested(["users", user], "RELAB", f"RELAB_{unique_id}")
-
         self.init_sessions(user)
         self.init_monitors(user)
         self.init_payroll(user)
