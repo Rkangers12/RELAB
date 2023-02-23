@@ -150,10 +150,10 @@ def initialise_user(author):
 
     if author not in datastore.get_value(key, {}):
         # initialise user
-        # datastore.overwrite_nested([key], author, {})
+        datastore.overwrite_nested([key], author, {})
 
         code_id = uuid4().hex[:10]
-        # setup_db.setup_user(author, code_id)
+        setup_db.setup_user(author, code_id)
 
         return True
 
@@ -276,7 +276,7 @@ async def on_message(message):
                 channel = client.get_channel(int(os.getenv("BOT_HELPER")))
                 await channel.send(f"```Registering: Added {author} to database.```")
 
-                # await initialise_channel(message.author)
+                await initialise_channel(message.author)
                 await channel.send(f"```Registering: Created channels for {author}.```")
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
