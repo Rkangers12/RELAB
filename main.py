@@ -1,5 +1,6 @@
 import os
 import discord
+import asyncio
 
 from datetime import datetime
 from dotenv import load_dotenv
@@ -157,6 +158,63 @@ def initialise_user(author):
         return True
 
 
+def guild_channel_ids(guild, channel_name):
+    """retrieve the channel ids using channel name"""
+
+    for channel in guild.channels:
+        if str(channel) == channel_name:
+            return channel.id
+
+
+async def initialise_channel(author):
+    """initialise the relab and reporting channel for user"""
+
+    user = str(author)
+    user_code = user[-4:]
+
+    for guild in client.guilds:
+
+        # categories
+        relab = guild.get_channel(int(os.getenv("RELAB_CAT")))
+        reporter = guild.get_channel(int(os.getenv("REPORTER_CAT")))
+
+        permissions = discord.PermissionOverwrite(
+            send_messages=True,
+            view_channel=True,
+            read_message_history=True,
+            create_public_threads=False,
+            create_private_threads=False,
+            attach_files=False,
+            use_external_stickers=False,
+            use_external_emojis=False,
+            manage_messages=True,
+        )
+        perms = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            author: permissions,
+        }
+
+        user_relab = "relab-" + user_code
+        await guild.create_text_channel(user_relab, category=relab, overwrites=perms)
+        datastore.overwrite_nested(
+            ["users", user], "RELAB", guild_channel_ids(guild, user_relab)
+        )
+
+        user_rep = "reporter-" + user_code
+        await guild.create_text_channel(user_rep, category=reporter, overwrites=perms)
+        datastore.overwrite_nested(
+            ["users", user], "REPORTER", guild_channel_ids(guild, user_rep)
+        )
+
+        # retrieve the role 'user' object
+        user_role = guild.get_role(int(os.getenv("ROLE_USER")))
+
+        # retrieve the 'member' object of the message sender
+        member = guild.get_member(author.id)
+
+        await member.add_roles(user_role)
+
+
 @client.event
 async def on_message(message):
 
@@ -172,13 +230,15 @@ async def on_message(message):
                 await message.channel.purge(limit=100)
             except discord.errors.NotFound:
                 print("No messages to purge found.")
+
+        if "Please be patient :)" in msg:
+            await asyncio.sleep(30)
+            await message.add_reaction("\U00002705")
         return
 
     author = str(message.author)
 
-    relab_channel = datastore.get_nested_value(
-        ["users", author, "RELAB"], default="RELAB_0000"
-    )
+    relab_channel = datastore.get_nested_value(["users", author, "RELAB"], default=0)
 
     if message.author.id == int(os.getenv("KING_ID")):
 
@@ -211,12 +271,13 @@ async def on_message(message):
 
             if initialise_user(author):
                 await message.channel.send(
-                    f"```Process to register {author} has begun. Please be patient :)```"
+                    f"```Registering {author}, Please be patient :)```"
                 )
-                channel = client.get_channel(int(os.getenv("WAITING_CHANNEL")))
-                await channel.send(
-                    f"```{author} has joined the waiting list to join RELAB.```"
-                )
+                channel = client.get_channel(int(os.getenv("BOT_HELPER")))
+                await channel.send(f"```Registering: Added {author} to database.```")
+
+                await initialise_channel(message.author)
+                await channel.send(f"```Registering: Created channels for {author}.```")
 
         if message.channel.id == int(os.getenv("HELP_CHANNEL")):
 
@@ -386,7 +447,7 @@ async def on_message(message):
 
                 await message.channel.send(travel_monitor.request)
 
-        if message.channel.id == int(os.getenv(relab_channel, "0000")):
+        if message.channel.id == relab_channel:
             if msg.startswith(".study"):
                 await sesscomms.study(message, author)
 
