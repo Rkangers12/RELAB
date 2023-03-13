@@ -48,20 +48,14 @@ class NotesReport:
                 note_ts = self._ht.date_to_ts(day)
                 now = self._ht.current_timestamp()
 
-                if note_ts - 86400 * 2.7 < now < note_ts - 86400 * 2.4:
-                    await channel.send(
-                        f"```ALERT: You are due to be alerted in 3 days for your {note} note: '{desc.capitalize()}'.```"
-                    )
-
-                if note_ts - 86400 * 0.7 < now < note_ts - 86400 * 0.4:
-                    await channel.send(
-                        f"```ALERT: You are due to be alerted in 1 day for your {note} note: '{desc.capitalize()}'.```"
-                    )
                 if note_ts < now < note_ts + 86400:
                     await channel.send(
-                        f"```ALERT: Reminding you about your note '{note}'. [1/2]```"
+                        f"```ALERT: Reminding you about your {'repeat' if meta['repeat'] else 'quick'} note '{note}'. [1/2]```"
                     )
                     await channel.send(f"```{desc.capitalize()}. [2/2]```")
+
+                    if not meta["repeat"]:
+                        self._nm.delete(name=note, user=note_user)
 
     @tasks.loop(seconds=600)  # TESTING ADJUSTABLE
     async def note_reporter(self):

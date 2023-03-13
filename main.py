@@ -1191,7 +1191,6 @@ async def on_message(message):
 
                     name, day = components[:2]
                     desc = " ".join(components[2:])
-                    print(desc)
 
                     res = notes_monitor.create(name, day, desc, author, quick=quick)
                 else:
