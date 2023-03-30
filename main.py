@@ -1198,11 +1198,11 @@ async def on_message(message):
 
                 if res == 200:
                     await message.channel.send(
-                        f"```Created {note_type.title()} Note:\nTitle: {name} | Alert Date: {due_date(day)}\n\n    Description: '{desc}'```"
+                        f"```Created {note_type.title()} Note:\nTitle: {name} | Alert Date: {due_date(day, weekday=False)}\n\n    Description: '{desc}'```"
                     )
                 elif res == 201:
                     await message.channel.send(
-                        f"```Note {name} does not exist. Please create using '.repeatnote' or '.quicknote' first.```"
+                        f"```Note {name} already exists. Please create using '.repeatnote' or '.quicknote' first.```"
                     )
                 else:
                     await message.channel.send(
@@ -1247,7 +1247,7 @@ async def on_message(message):
 
                 if res == 200:
                     await message.channel.send(
-                        f"```Modified {name} note, new alert date {due_date(day)}```"
+                        f"```Modified {name} note, new alert date {due_date(day, weekday=False)}```"
                     )
                 elif res == 204:
                     await message.channel.send(
@@ -1271,7 +1271,7 @@ async def on_message(message):
                 if note is not None:
                     note_type = "Repeat" if note["repeat"] else "Quick"
                     await message.channel.send(
-                        f"```{note_type} Note:\nTitle: {name} | Alert Date: {due_date(note['day'])}\n\n    Description: '{note['desc']}'```"
+                        f"```{note_type} Note:\nTitle: {name} | Alert Date: {due_date(note['day'], weekday=False)}\n\n    Description: '{note['desc']}'```"
                     )
                 else:
                     await message.channel.send(
@@ -1330,7 +1330,7 @@ async def on_message(message):
                     meta = notes[note]
                     note_type = "repeat" if meta["repeat"] else "quick"
                     comms.append(
-                        f"Note '{note}' is of type {note_type} that seeks to alert on {due_date(meta['day'])}."
+                        f"Note '{note}' is of type {note_type} that seeks to alert on {due_date(meta['day'], weekday=False)}."
                     )
 
                 await message.channel.send("\n".join(comms) + "```")
